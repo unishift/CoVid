@@ -86,7 +86,7 @@ class App(Application):
         metrics_menu.add_checkbutton(label='PSNR', command=None)
         metrics_menu.add_checkbutton(label='SSIM', command=None)
         metrics_menu.add_checkbutton(label='NIQE', command=None)
-        menu_bar.add_cascade(label='View', menu=metrics_menu)
+        menu_bar.add_cascade(label='Metrics', menu=metrics_menu)
 
 
 def main():
