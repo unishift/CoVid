@@ -9,15 +9,14 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
       
-      - name: Check formatting with black
-        uses: psf/black@stable
-        with:
-          args: ". --check"
-      
-      - name: Install flake8
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install flake8
+          python -m pip install flake8 black
+      
+      - name: Check formatting with black
+        run: |
+          python -m black . --check --diff
       
       - name: Check for errors with flake8
         run: |
