@@ -1,8 +1,9 @@
-import tkinter as tk
+import os
 import gettext
+import tkinter as tk
 
 
-gettext.install("covid")
+gettext.install("covid", os.path.dirname(__file__))
 
 
 class Application(tk.Frame):
