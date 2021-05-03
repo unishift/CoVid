@@ -1,4 +1,8 @@
 import tkinter as tk
+import gettext
+
+
+gettext.install("covid")
 
 
 class Application(tk.Frame):
@@ -68,27 +72,27 @@ class App(Application):
         self.master.config(menu=menu_bar)
 
         file_menu = tk.Menu(menu_bar, tearoff=0)
-        file_menu.add_command(label="Open left", command=None)
-        file_menu.add_command(label="Open right", command=None)
+        file_menu.add_command(label=_("Open left"), command=None)
+        file_menu.add_command(label=_("Open right"), command=None)
         file_menu.add_separator()
-        file_menu.add_command(label="Save as GIF...", command=None)
-        file_menu.add_command(label="Save as video...", command=None)
+        file_menu.add_command(label=_("Save as GIF..."), command=None)
+        file_menu.add_command(label=_("Save as video..."), command=None)
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.quit)
-        menu_bar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label=_("Exit"), command=self.quit)
+        menu_bar.add_cascade(label=_("File"), menu=file_menu)
 
         view_menu = tk.Menu(menu_bar, tearoff=0)
-        view_menu.add_radiobutton(label="Side-by-side", command=None)
-        view_menu.add_radiobutton(label="Chess pattern", command=None)
-        view_menu.add_radiobutton(label="Curtain", command=None)
+        view_menu.add_radiobutton(label=_("Side-by-side"), command=None)
+        view_menu.add_radiobutton(label=_("Chess pattern"), command=None)
+        view_menu.add_radiobutton(label=_("Curtain"), command=None)
         view_menu.invoke(0)
-        menu_bar.add_cascade(label="View", menu=view_menu)
+        menu_bar.add_cascade(label=_("View"), menu=view_menu)
 
         metrics_menu = tk.Menu(menu_bar, tearoff=0)
         metrics_menu.add_checkbutton(label="PSNR", command=None)
         metrics_menu.add_checkbutton(label="SSIM", command=None)
         metrics_menu.add_checkbutton(label="NIQE", command=None)
-        menu_bar.add_cascade(label="Metrics", menu=metrics_menu)
+        menu_bar.add_cascade(label=_("Metrics"), menu=metrics_menu)
 
 
 def main():
