@@ -3,7 +3,7 @@ name: "Docs Build Deploy"
 on:
   push:
     branches:
-      - sphinx
+      - master
 
 jobs:
   deploy:
