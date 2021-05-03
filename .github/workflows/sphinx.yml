@@ -19,7 +19,7 @@ jobs:
         docs-folder: "docs/"
 
     - uses: actions/upload-artifact@v2
-      if: github.ref == 'refs/heads/sphinx'
+      if: ${{ github.ref == 'refs/heads/sphinx' }}
       with:
         name: built-docs
         path: docs/_build/html
@@ -27,7 +27,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/sphinx'
+    if: ${{ github.ref == 'refs/heads/sphinx' }}
     steps:
       - uses: actions/checkout@v2
         with:
