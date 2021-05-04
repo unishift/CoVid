@@ -289,23 +289,26 @@ class App(Application):
             self.master.after(int(delay), self.video_playback_update)
 
     def _on_select_canvas_update(self, first_video, second_video):
-        if second_video is not None:
-            second_video.SetPlaybackFramePosition(0)
-            self._sync_video_with_offset()
-            self._sync_progress_bar_with_videos()
         if first_video is not None:
             canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
             first_video.UpdateVideoSize(canvas_size_wh)
-            left_delta = self._videos_next_frame()
-            self._check_start_timer(left_delta)
+            if second_video is not None:
+                second_video.SetPlaybackFramePosition(0)
+                self._sync_video_with_offset()
+                self._sync_progress_bar_with_videos()
+                self._check_start_timer(0)
 
     def select_left_video(self):
         self.left_video = self._select_video_safe()
-        self._on_select_canvas_update(self.left_video, self.right_video)
+        if self.left_video is not None:
+            self._on_select_canvas_update(self.left_video, self.right_video)
+        self._update_canvas_image()
 
     def select_right_video(self):
         self.right_video = self._select_video_safe()
-        self._on_select_canvas_update(self.right_video, self.left_video)
+        if self.right_video is not None:
+            self._on_select_canvas_update(self.right_video, self.left_video)
+        self._update_canvas_image()
 
     def create_menu(self):
         menu_bar = tk.Menu(self)
