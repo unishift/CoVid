@@ -54,10 +54,10 @@ class FfmsReader:
         self.vsource.set_output_format(
             width=new_shape[0],
             height=new_shape[1],
-            resizer=ffms2.FFMS_RESIZER_FAST_BILINEAR,
+            resizer=ffms2.FFMS_RESIZER_BILINEAR,
         )
 
-    def GetNextFrame(self):
+    def GetNextFrame(self, update_frame_idx=True):
         frame = self.vsource.get_frame(self.next_frame_idx)
         width = frame.ScaledWidth or frame.EncodedWidth
         height = frame.ScaledHeight or frame.EncodedHeight
@@ -76,5 +76,6 @@ class FfmsReader:
             .reshape((height, frame.Linesize[0]))[:, 0 : (width * 3)]
             .reshape(height, width, 3)
         )
-        self.next_frame_idx = after_next_frame_idx
+        if update_frame_idx:
+            self.next_frame_idx = after_next_frame_idx
         return array, this_frame_delta

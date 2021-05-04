@@ -3,8 +3,9 @@ import gettext
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from functools import partial
 
-from PIL import ImageTk, Image
+from PIL import ImageTk
 import numpy as np
 
 import compose
@@ -46,14 +47,17 @@ class App(Application):
 
         self.left_video: video_reader.FfmsReader = None
         self.right_video: video_reader.FfmsReader = None
-        self.paused = False
+        self.paused = True
         self.last_image = None
+        self.last_time = None
         self.need_reset_last_image = False
+        self.resize_delay_counter = 0
+        self.last_canvas_size = (self.C.winfo_width(), self.C.winfo_height())
         self.composer = compose.Composer(
             compose.ComposeVerticalSplit,
             info_provide_func=lambda *args: "PSNR:24.07070707\nSSIM:228.14888",
             font_config=compose.FontConfig(),
-        )
+        )  # TODO implement metric provider function
 
     def create_widgets(self):
         super().create_widgets()
@@ -64,9 +68,13 @@ class App(Application):
         self.controls = tk.Frame(self)
         self.controls.grid(sticky="EWS", row=1)
 
-        self.back_fast = tk.Button(self.controls, text="<<", command=None)
+        self.back_fast = tk.Button(
+            self.controls, text="<<", command=partial(self.scroll_both_videos, -10)
+        )
         self.back_fast.grid(row=0, column=0, sticky="W")
-        self.back = tk.Button(self.controls, text="<", command=None)
+        self.back = tk.Button(
+            self.controls, text="<", command=partial(self.scroll_both_videos, -1)
+        )
         self.back.grid(row=0, column=1, sticky="W")
 
         self.timeline = tk.Scale(
@@ -78,9 +86,13 @@ class App(Application):
         )
         self.timeline.grid(row=0, column=2, sticky="EW")
 
-        self.forward = tk.Button(self.controls, text=">", command=None)
+        self.forward = tk.Button(
+            self.controls, text=">", command=partial(self.scroll_both_videos, 1)
+        )
         self.forward.grid(row=0, column=3, sticky="E")
-        self.forward_fast = tk.Button(self.controls, text=">>", command=None)
+        self.forward_fast = tk.Button(
+            self.controls, text=">>", command=partial(self.scroll_both_videos, 10)
+        )
         self.forward_fast.grid(row=0, column=4, sticky="E")
 
         self.offset = tk.StringVar()
@@ -90,11 +102,12 @@ class App(Application):
             from_=-100,
             to=100,
             textvariable=self.offset,
-            command=self.handle_offset_cnahge,
+            command=self.handle_offset_change,
         )
         self.offset_box.grid(row=1, column=2)
 
         self.master.bind("<Configure>", self.handle_resize)
+        self.master.bind("<space>", self.toggle_pause)
 
     def configure_widgets(self):
         super().configure_widgets()
@@ -103,13 +116,12 @@ class App(Application):
 
     def _select_video_safe(self):
         file_name = filedialog.askopenfilename()
-        if file_name is None:
+        if file_name == "":
             return
         try:
             return video_reader.FfmsReader(file_name)
         except video_reader.VideoOpenException as e:
             messagebox.showerror("Error!", f"Can't open {file_name} as video")
-        return None
 
     def _sync_progress_bar_with_videos(self):
         left_length = self.left_video.GetLength()
@@ -120,6 +132,7 @@ class App(Application):
         self.timeline.config(
             from_=max(-offset, 0), to=min(left_length - 1, right_length - 1 - offset)
         )
+
         self.timeline.set(self.left_video.GetPlaybackFramePosition())
 
     def _sync_video_with_offset(self):
@@ -147,35 +160,39 @@ class App(Application):
             current_delta != desired_delta
         ):  # Finally we understand that we can't fix offset and change the value back
             self.offset.set(str(current_delta))
-        # Now we need to fix maximum progress_bar value as the offset might have an impact on it
+        self.timeline.set(self.left_video.GetPlaybackFramePosition())
+        # Now we need to fix maximum progress_bar value
+        # as the offset might have an impact on it
         self._sync_progress_bar_with_videos()
 
-    def _videos_next_frame(self):
+    def _videos_next_frame(self, update_frame_idx=True):
         canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
         if self.left_video is None and self.right_video is None:
             return
+        if (
+            self.left_video is None
+            or self.right_video is None
+            or self.left_video.IsEnd()
+            or self.right_video.IsEnd()
+        ):
+            update_frame_idx = False  # not playing forward
+
         if self.left_video is not None:
-            left_frame, left_delta = self.left_video.GetNextFrame()
+            left_frame, left_delta = self.left_video.GetNextFrame(update_frame_idx)
         if self.right_video is not None:
-            right_frame, right_delta = self.right_video.GetNextFrame()
+            right_frame, _ = self.right_video.GetNextFrame(update_frame_idx)
 
         if self.left_video is None:
             left_frame = np.zeros_like(right_frame)
             left_delta = 1000 / 24
         elif self.right_video is None:
             right_frame = np.zeros_like(left_frame)
-            right_delta = 1000 / 24
-        elif self.left_video.IsEnd() or self.right_video.IsEnd():
-            return
         else:
             self._sync_progress_bar_with_videos()
 
         composed = self.composer.Compose(
             left_frame, right_frame, canvas_size_wh=canvas_size_wh
         )
-        # resize_coeff = min(canvas_size_wh[0] / composed.width, canvas_size_wh[1] / composed.height)
-        # composed = composed.resize(size=(int(composed.width * resize_coeff), int(composed.height * resize_coeff)),
-        #                           resample=Image.BILINEAR)
         if self.last_image is None or self.need_reset_last_image:
             self.need_reset_last_image = False
             self.last_image = ImageTk.PhotoImage(composed)
@@ -183,27 +200,50 @@ class App(Application):
         else:
             self.last_image.paste(composed)
         self.C.update()
-        return left_delta
+        return left_delta if update_frame_idx else None
+
+    def _update_canvas_image(self):
+        if self.paused:  # Otherwise will update itself in video play cycle
+            self._videos_next_frame(update_frame_idx=False)
+
+    def scroll_both_videos(self, delta):
+        if self.left_video is not None and self.right_video is not None:
+            self.left_video.ShiftPlaybackFramePosition(delta)
+            self.right_video.ShiftPlaybackFramePosition(delta)
+            # even if videos desync at start/end, we fix it back
+            self._sync_video_with_offset()
+            self._sync_progress_bar_with_videos()
+            self._update_canvas_image()
 
     def handle_resize(self, event):
-        canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
-        if self.left_video is not None:
-            self.left_video.UpdateVideoSize(canvas_size_wh)
-            self.left_video.ShiftPlaybackFramePosition(-1)
-        if self.right_video is not None:
-            self.right_video.UpdateVideoSize(canvas_size_wh)
-            self.right_video.ShiftPlaybackFramePosition(-1)
-        self._videos_next_frame()
-        self.need_reset_last_image = True
-        self.composer.HandleResize(canvas_size_wh)
+        if self.last_canvas_size != (self.C.winfo_width(), self.C.winfo_height()):
+            self.last_canvas_size = (self.C.winfo_width(), self.C.winfo_height())
+            self.resize_delay_counter += 1
+            self.master.after(1000, self.on_resize_fadeout)
 
-    def handle_offset_cnahge(self):
+    def on_resize_fadeout(self):
+        self.resize_delay_counter -= 1
+        if self.resize_delay_counter == 0:
+            canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
+            if self.left_video is not None:
+                self.left_video.UpdateVideoSize(canvas_size_wh)
+            if self.right_video is not None:
+                self.right_video.UpdateVideoSize(canvas_size_wh)
+            self.need_reset_last_image = True
+            self.composer.HandleResize(canvas_size_wh)
+            self._update_canvas_image()
+
+    def toggle_pause(self, event):
+        if self.paused:
+            self._check_start_timer(0)
+        else:
+            self.paused = True
+
+    def handle_offset_change(self):
         if self.left_video is not None and self.right_video is not None:
             self._sync_video_with_offset()
             self._sync_progress_bar_with_videos()
-            self.left_video.ShiftPlaybackFramePosition(-1)
-            self.right_video.ShiftPlaybackFramePosition(-1)
-            self._videos_next_frame()
+            self._update_canvas_image()
 
     def handle_timeline_change(self, event):
         if self.left_video is not None and self.right_video is not None:
@@ -216,24 +256,36 @@ class App(Application):
             )
             self._sync_video_with_offset()
             self._sync_progress_bar_with_videos()
-            self.left_video.ShiftPlaybackFramePosition(-1)
-            self.right_video.ShiftPlaybackFramePosition(-1)
-            self._videos_next_frame()
+            self._update_canvas_image()
 
     def video_playback_update(self):
         if self.paused:
             return
-        if self.left_video is not None and self.right_video is not None:
-            cur_time = time.time()
+        next_update_time = 1000.0 / 24
+        if (
+            not self.paused
+            and self.resize_delay_counter == 0
+            and self.left_video is not None
+            and self.right_video is not None
+        ):
+            self.last_time = time.perf_counter()
             left_delta = self._videos_next_frame()
-            elapsed_time = (time.time() - cur_time) * 1000
-            print(elapsed_time)
-            self.master.after(
-                int(max(left_delta - elapsed_time, 1)), self.video_playback_update
-            )
+            if left_delta is None:
+                self.paused = True
+                return
+            new_time = time.perf_counter()
+            elapsed_time = (new_time - self.last_time) * 1000
+            next_update_time = max((left_delta - elapsed_time), 0)
+            print(self.last_time, new_time, elapsed_time, left_delta, next_update_time)
+            self.last_time = new_time
+        self.master.after(
+            int(next_update_time), self.video_playback_update
+        )  # TODO after() can't be reliably used for frame scheduling.
+        # TODO Better write some compensation logic later for after()
 
     def _check_start_timer(self, delay):
-        if self.left_video is not None and self.right_video is not None:
+        if self.left_video is not None and self.right_video is not None and self.paused:
+            self.paused = False
             self.master.after(int(delay), self.video_playback_update)
 
     def _on_select_canvas_update(self, first_video, second_video):
@@ -284,7 +336,7 @@ class App(Application):
 
 
 def main():
-    app = App(title="<None> and <None> | CoVid")
+    app = App(title="<None> and <None> | CoVid")  # TODO update title
     app.master.geometry("600x400")
     app.mainloop()
 

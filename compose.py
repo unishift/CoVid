@@ -21,9 +21,10 @@ class FontConfig:
 
 
 def _check_frame_pair_is_correct(left_frame: Frame, right_frame: Frame):
-    assert (
-        left_frame.shape == right_frame.shape
-    ), f"Frame pair is expected to have same shape, but found {left_frame.shape} vs {right_frame.shape}"
+    assert left_frame.shape == right_frame.shape, (
+        f"Frame pair is expected to have same shape, but found "
+        f"{left_frame.shape} vs {right_frame.shape}"
+    )
     assert (
         len(left_frame.shape) == 3 and left_frame.shape[-1] == 3
     ), f"Frames are expected to be 3-channel colored images"
