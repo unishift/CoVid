@@ -195,6 +195,7 @@ class App(Application):
             self.right_video.ShiftPlaybackFramePosition(-1)
         self._videos_next_frame()
         self.need_reset_last_image = True
+        self.composer.HandleResize(canvas_size_wh)
 
     def handle_offset_cnahge(self):
         if self.left_video is not None and self.right_video is not None:

@@ -126,6 +126,9 @@ class Composer:
         )
         return img
 
+    def HandleResize(self, canvas_size_wh):
+        self.optimal_font_size = None
+
     def Compose(self, left_frame: Frame, right_frame: Frame, canvas_size_wh=None):
         _check_frame_pair_is_correct(left_frame, right_frame)
         combined_frame = self.compose_func(left_frame, right_frame)
