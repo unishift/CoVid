@@ -69,7 +69,13 @@ class App(Application):
         self.back = tk.Button(self.controls, text="<", command=None)
         self.back.grid(row=0, column=1, sticky="W")
 
-        self.timeline = tk.Scale(self.controls, from_=0, to_=100, orient=tk.HORIZONTAL)
+        self.timeline = tk.Scale(
+            self.controls,
+            from_=0,
+            to_=100,
+            orient=tk.HORIZONTAL,
+            command=self.handle_timeline_change,
+        )
         self.timeline.grid(row=0, column=2, sticky="EW")
 
         self.forward = tk.Button(self.controls, text=">", command=None)
@@ -80,7 +86,11 @@ class App(Application):
         self.offset = tk.StringVar()
         self.offset.set("0")
         self.offset_box = tk.Spinbox(
-            self.controls, from_=-100, to=100, textvariable=self.offset
+            self.controls,
+            from_=-100,
+            to=100,
+            textvariable=self.offset,
+            command=self.handle_offset_cnahge,
         )
         self.offset_box.grid(row=1, column=2)
 
@@ -101,7 +111,7 @@ class App(Application):
             messagebox.showerror("Error!", f"Can't open {file_name} as video")
         return None
 
-    def _sync_progress_bar_length(self):
+    def _sync_progress_bar_with_videos(self):
         left_length = self.left_video.GetLength()
         right_length = self.right_video.GetLength()
 
@@ -110,6 +120,7 @@ class App(Application):
         self.timeline.config(
             from_=max(-offset, 0), to=min(left_length - 1, right_length - 1 - offset)
         )
+        self.timeline.set(self.left_video.GetPlaybackFramePosition())
 
     def _sync_video_with_offset(self):
         assert self.left_video is not None and self.right_video is not None
@@ -137,7 +148,7 @@ class App(Application):
         ):  # Finally we understand that we can't fix offset and change the value back
             self.offset.set(str(current_delta))
         # Now we need to fix maximum progress_bar value as the offset might have an impact on it
-        self._sync_progress_bar_length()
+        self._sync_progress_bar_with_videos()
 
     def _videos_next_frame(self):
         canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
@@ -156,6 +167,8 @@ class App(Application):
             right_delta = 1000 / 24
         elif self.left_video.IsEnd() or self.right_video.IsEnd():
             return
+        else:
+            self._sync_progress_bar_with_videos()
 
         composed = self.composer.Compose(
             left_frame, right_frame, canvas_size_wh=canvas_size_wh
@@ -183,6 +196,29 @@ class App(Application):
         self._videos_next_frame()
         self.need_reset_last_image = True
 
+    def handle_offset_cnahge(self):
+        if self.left_video is not None and self.right_video is not None:
+            self._sync_video_with_offset()
+            self._sync_progress_bar_with_videos()
+            self.left_video.ShiftPlaybackFramePosition(-1)
+            self.right_video.ShiftPlaybackFramePosition(-1)
+            self._videos_next_frame()
+
+    def handle_timeline_change(self, event):
+        if self.left_video is not None and self.right_video is not None:
+            if event == str(self.left_video.GetPlaybackFramePosition()):
+                return
+            # 1/0
+            self.left_video.SetPlaybackFramePosition(self.timeline.get())
+            self.right_video.SetPlaybackFramePosition(
+                self.timeline.get() + int(self.offset.get())
+            )
+            self._sync_video_with_offset()
+            self._sync_progress_bar_with_videos()
+            self.left_video.ShiftPlaybackFramePosition(-1)
+            self.right_video.ShiftPlaybackFramePosition(-1)
+            self._videos_next_frame()
+
     def video_playback_update(self):
         if self.paused:
             return
@@ -203,7 +239,7 @@ class App(Application):
         if second_video is not None:
             second_video.SetPlaybackFramePosition(0)
             self._sync_video_with_offset()
-            self._sync_progress_bar_length()
+            self._sync_progress_bar_with_videos()
         if first_video is not None:
             canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
             first_video.UpdateVideoSize(canvas_size_wh)
