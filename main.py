@@ -179,7 +179,7 @@ class App(Application):
             self.left_video.ShiftPlaybackFramePosition(-1)
         if self.right_video is not None:
             self.right_video.UpdateVideoSize(canvas_size_wh)
-            self.riht_video.ShiftPlaybackFramePosition(-1)
+            self.right_video.ShiftPlaybackFramePosition(-1)
         self._videos_next_frame()
         self.need_reset_last_image = True
 
