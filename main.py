@@ -2,13 +2,11 @@ import os
 import gettext
 import time
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
 from functools import partial
 
 from PIL import ImageTk
-import numpy as np
 
-import compose
 import video_reader
 
 gettext.install("covid", os.path.dirname(__file__))
@@ -45,25 +43,20 @@ class App(Application):
     def __init__(self, *args, **kwargs):
         super(App, self).__init__(*args, **kwargs)
 
-        self.left_video: video_reader.FfmsReader = None
-        self.right_video: video_reader.FfmsReader = None
         self.paused = True
+        self.play_cycle_paused = True  # This can differ from paused when we
+        # pause video and it needs to load several frames from async video reader
         self.last_image = None
         self.last_time = None
-        self.need_reset_last_image = False
         self.resize_delay_counter = 0
         self.last_canvas_size = (self.C.winfo_width(), self.C.winfo_height())
-        self.composer = compose.Composer(
-            compose.ComposeVerticalSplit,
-            info_provide_func=lambda *args: "PSNR:24.07070707\nSSIM:228.14888",
-            font_config=compose.FontConfig(),
-        )  # TODO implement metric provider function
+        self.reader = video_reader.NonBlockingPairReader("split")
 
     def create_widgets(self):
         super().create_widgets()
         self.create_menu()
 
-        self.C = tk.Canvas(self, background="gray75")
+        self.C = tk.Label(self)  # , background="gray75")
         self.C.grid(sticky="NEWS")
         self.controls = tk.Frame(self)
         self.controls.grid(sticky="EWS", row=1)
@@ -117,15 +110,21 @@ class App(Application):
     def _select_video_safe(self):
         file_name = filedialog.askopenfilename()
         if file_name == "":
-            return
-        try:
-            return video_reader.FfmsReader(file_name)
-        except video_reader.VideoOpenException as e:
-            messagebox.showerror("Error!", f"Can't open {file_name} as video")
+            return None
+        return file_name
+
+    def _unbind_timeline_events(self):
+        self.timeline.configure(command=None)
+        self.offset_box.configure(command=None)
+
+    def _bind_timeline_events(self):
+        self.timeline.configure(command=self.handle_timeline_change)
+        self.offset_box.configure(command=self.handle_offset_change)
 
     def _sync_progress_bar_with_videos(self):
-        left_length = self.left_video.GetLength()
-        right_length = self.right_video.GetLength()
+        self._unbind_timeline_events()
+        left_length = self.reader.left_pos.GetLength()
+        right_length = self.reader.right_pos.GetLength()
 
         offset = int(self.offset.get())
 
@@ -133,83 +132,93 @@ class App(Application):
             from_=max(-offset, 0), to=min(left_length - 1, right_length - 1 - offset)
         )
 
-        self.timeline.set(self.left_video.GetPlaybackFramePosition())
+        self.timeline.set(self.reader.left_pos.GetPlaybackFramePosition())
+        self._bind_timeline_events()
 
     def _sync_video_with_offset(self):
-        assert self.left_video is not None and self.right_video is not None
+        assert self.reader.left_pos is not None and self.reader.right_pos is not None
+        self._unbind_timeline_events()
         current_delta = (
-            self.right_video.GetPlaybackFramePosition()
-            - self.left_video.GetPlaybackFramePosition()
+            self.reader.right_pos.GetPlaybackFramePosition()
+            - self.reader.left_pos.GetPlaybackFramePosition()
         )
         desired_delta = int(self.offset.get())
         if (
             current_delta != desired_delta
         ):  # If we need to fix offset, at first we try to move right video
-            self.right_video.ShiftPlaybackFramePosition(desired_delta - current_delta)
+            self.reader.right_pos.ShiftPlaybackFramePosition(
+                desired_delta - current_delta
+            )
         current_delta = (
-            self.right_video.GetPlaybackFramePosition()
-            - self.left_video.GetPlaybackFramePosition()
+            self.reader.right_pos.GetPlaybackFramePosition()
+            - self.reader.left_pos.GetPlaybackFramePosition()
         )
         if current_delta != desired_delta:  # If it's not enough, we move left video
-            self.left_video.ShiftPlaybackFramePosition(-(desired_delta - current_delta))
+            self.reader.left_pos.ShiftPlaybackFramePosition(
+                -(desired_delta - current_delta)
+            )
         current_delta = (
-            self.right_video.GetPlaybackFramePosition()
-            - self.left_video.GetPlaybackFramePosition()
+            self.reader.right_pos.GetPlaybackFramePosition()
+            - self.reader.left_pos.GetPlaybackFramePosition()
         )
         if (
             current_delta != desired_delta
         ):  # Finally we understand that we can't fix offset and change the value back
             self.offset.set(str(current_delta))
-        self.timeline.set(self.left_video.GetPlaybackFramePosition())
+        self.timeline.set(self.reader.left_pos.GetPlaybackFramePosition())
         # Now we need to fix maximum progress_bar value
         # as the offset might have an impact on it
+        self._bind_timeline_events()
         self._sync_progress_bar_with_videos()
+
+    def _full_interface_sync(self):
+        self._sync_video_with_offset()
+        self._sync_progress_bar_with_videos()
+        self.reader.OnIndexUpdate((self.C.winfo_width(), self.C.winfo_height()))
 
     def _videos_next_frame(self, update_frame_idx=True):
         canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
-        if self.left_video is None and self.right_video is None:
+        if self.reader.left_pos is None and self.reader.right_pos is None:
             return
         if (
-            self.left_video is None
-            or self.right_video is None
-            or self.left_video.IsEnd()
-            or self.right_video.IsEnd()
+            self.reader.left_pos is None
+            or self.reader.right_pos is None
+            or self.reader.left_pos.IsEnd()
+            or self.reader.right_pos.IsEnd()
         ):
             update_frame_idx = False  # not playing forward
 
-        if self.left_video is not None:
-            left_frame, left_delta = self.left_video.GetNextFrame(update_frame_idx)
-        if self.right_video is not None:
-            right_frame, _ = self.right_video.GetNextFrame(update_frame_idx)
+        frame, left_delta = self.reader.GetNextFrame(update_frame_idx, canvas_size_wh)
 
-        if self.left_video is None:
-            left_frame = np.zeros_like(right_frame)
-            left_delta = 1000 / 24
-        elif self.right_video is None:
-            right_frame = np.zeros_like(left_frame)
-        else:
+        if update_frame_idx:
             self._sync_progress_bar_with_videos()
 
-        composed = self.composer.Compose(
-            left_frame, right_frame, canvas_size_wh=canvas_size_wh
-        )
-        if self.last_image is None or self.need_reset_last_image:
-            self.need_reset_last_image = False
-            self.last_image = ImageTk.PhotoImage(composed)
-            self.C.create_image(0, 0, anchor="nw", image=self.last_image)
+        if (
+            True
+            or self.last_image is None
+            or (
+                frame.height != self.last_image.height()
+                or frame.width != self.last_image.width()
+            )
+        ):
+            self.last_image = ImageTk.PhotoImage(frame)
+            # self.C.create_image(0, 0, anchor="nw", image=self.last_image)
+            self.C.configure(image=self.last_image)
         else:
-            self.last_image.paste(composed)
-        self.C.update()
+            self.last_image.paste(frame)
         return left_delta if update_frame_idx else None
 
     def _update_canvas_image(self):
-        if self.paused:  # Otherwise will update itself in video play cycle
+        print("Updating canvas image", self.play_cycle_paused)
+        if self.play_cycle_paused:  # Otherwise will update itself in video play cycle
             self._videos_next_frame(update_frame_idx=False)
+            self.video_playback_update()
+            print("After update!!")
 
     def scroll_both_videos(self, delta):
-        if self.left_video is not None and self.right_video is not None:
-            self.left_video.ShiftPlaybackFramePosition(delta)
-            self.right_video.ShiftPlaybackFramePosition(delta)
+        if self.reader.left_pos is not None and self.reader.right_pos is not None:
+            self.reader.left_pos.ShiftPlaybackFramePosition(delta)
+            self.reader.right_pos.ShiftPlaybackFramePosition(delta)
             # even if videos desync at start/end, we fix it back
             self._sync_video_with_offset()
             self._sync_progress_bar_with_videos()
@@ -222,15 +231,13 @@ class App(Application):
             self.master.after(1000, self.on_resize_fadeout)
 
     def on_resize_fadeout(self):
+        print("fadeout!")
         self.resize_delay_counter -= 1
         if self.resize_delay_counter == 0:
             canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
-            if self.left_video is not None:
-                self.left_video.UpdateVideoSize(canvas_size_wh)
-            if self.right_video is not None:
-                self.right_video.UpdateVideoSize(canvas_size_wh)
-            self.need_reset_last_image = True
-            self.composer.HandleResize(canvas_size_wh)
+            self.reader.UpdateVideoSize(canvas_size_wh)
+            # self.reader.last_input["ReadFrame"] = None
+            # self.reader.composer.HandleResize(canvas_size_wh)
             self._update_canvas_image()
 
     def toggle_pause(self, event):
@@ -240,18 +247,20 @@ class App(Application):
             self.paused = True
 
     def handle_offset_change(self):
-        if self.left_video is not None and self.right_video is not None:
+        if self.reader.left_pos is not None and self.reader.right_pos is not None:
             self._sync_video_with_offset()
             self._sync_progress_bar_with_videos()
             self._update_canvas_image()
 
     def handle_timeline_change(self, event):
-        if self.left_video is not None and self.right_video is not None:
-            if event == str(self.left_video.GetPlaybackFramePosition()):
+        if self.reader.left_pos is not None and self.reader.right_pos is not None:
+            print(event)
+            if event == str(self.reader.left_pos.GetPlaybackFramePosition()):
                 return
+            print(event, "!")
             # 1/0
-            self.left_video.SetPlaybackFramePosition(self.timeline.get())
-            self.right_video.SetPlaybackFramePosition(
+            self.reader.left_pos.SetPlaybackFramePosition(self.timeline.get())
+            self.reader.right_pos.SetPlaybackFramePosition(
                 self.timeline.get() + int(self.offset.get())
             )
             self._sync_video_with_offset()
@@ -259,55 +268,72 @@ class App(Application):
             self._update_canvas_image()
 
     def video_playback_update(self):
-        if self.paused:
+
+        left_no_tasks = self.reader.left_pos is None or self.reader.HasNoTasks()
+        right_no_tasks = self.reader.right_pos is None or self.reader.HasNoTasks()
+        if self.paused and left_no_tasks and right_no_tasks:
+            self.play_cycle_paused = True
+            self._videos_next_frame(False)
             return
         next_update_time = 1000.0 / 24
         if (
             not self.paused
             and self.resize_delay_counter == 0
-            and self.left_video is not None
-            and self.right_video is not None
+            and self.reader.left_pos is not None
+            and self.reader.right_pos is not None
         ):
             self.last_time = time.perf_counter()
             left_delta = self._videos_next_frame()
             if left_delta is None:
                 self.paused = True
-                return
-            new_time = time.perf_counter()
-            elapsed_time = (new_time - self.last_time) * 1000
-            next_update_time = max((left_delta - elapsed_time), 0)
-            print(self.last_time, new_time, elapsed_time, left_delta, next_update_time)
-            self.last_time = new_time
+            else:
+                new_time = time.perf_counter()
+                elapsed_time = (new_time - self.last_time) * 1000
+                next_update_time = max((left_delta - elapsed_time), 0)
+                print(
+                    self.last_time, new_time, elapsed_time, left_delta, next_update_time
+                )
+                self.last_time = new_time
+        elif self.resize_delay_counter == 0:
+            self._videos_next_frame(False)
+        self.play_cycle_paused = False
         self.master.after(
             int(next_update_time), self.video_playback_update
         )  # TODO after() can't be reliably used for frame scheduling.
         # TODO Better write some compensation logic later for after()
 
     def _check_start_timer(self, delay):
-        if self.left_video is not None and self.right_video is not None and self.paused:
+        if (
+            self.reader.left_pos is not None
+            and self.reader.right_pos is not None
+            and self.paused
+        ):
             self.paused = False
-            self.master.after(int(delay), self.video_playback_update)
+            print("trying to start...", self.play_cycle_paused)
+            if self.play_cycle_paused:
+                self.play_cycle_paused = False
+                self.master.after(int(delay), self.video_playback_update)
 
-    def _on_select_canvas_update(self, first_video, second_video):
-        if first_video is not None:
-            canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
-            first_video.UpdateVideoSize(canvas_size_wh)
-            if second_video is not None:
-                second_video.SetPlaybackFramePosition(0)
-                self._sync_video_with_offset()
-                self._sync_progress_bar_with_videos()
-                self._check_start_timer(0)
+    def _on_select_canvas_update(self, first_pos, second_pos):
+        canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
+        self.reader.UpdateVideoSize(canvas_size_wh)
+        if first_pos is not None and second_pos is not None:
+            self._sync_video_with_offset()
+            self._sync_progress_bar_with_videos()
+            self._check_start_timer(0)
 
     def select_left_video(self):
-        self.left_video = self._select_video_safe()
-        if self.left_video is not None:
-            self._on_select_canvas_update(self.left_video, self.right_video)
+        fname = self._select_video_safe()
+        if fname is not None:
+            self.reader.CreateLeftReader(fname)
+            self._on_select_canvas_update(self.reader.left_pos, self.reader.right_pos)
         self._update_canvas_image()
 
     def select_right_video(self):
-        self.right_video = self._select_video_safe()
-        if self.right_video is not None:
-            self._on_select_canvas_update(self.right_video, self.left_video)
+        fname = self._select_video_safe()
+        if fname is not None:
+            self.reader.CreateRightReader(fname)
+            self._on_select_canvas_update(self.reader.right_pos, self.reader.left_pos)
         self._update_canvas_image()
 
     def create_menu(self):

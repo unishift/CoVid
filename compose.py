@@ -6,9 +6,15 @@ from PIL import Image, ImageDraw, ImageFont
 Frame = np.ndarray
 
 
+def dummy_info(*args):
+    return "PSNR:24.07070707\nSSIM:228.14888"
+
+
 class FontConfig:
     def __init__(
         self,
+        canvas_size_wh: Tuple[int, int],
+        sample_text: str,
         font: str = "arial",
         location: Tuple[float, float] = (0.0, 1.0),
         color: Tuple[int, int, int] = (255, 255, 0),
@@ -18,22 +24,46 @@ class FontConfig:
         self.location = location
         self.color = color
         self.rel_max_size = rel_max_size
+        self._determine_optimal_font_size(canvas_size_wh, sample_text)
+
+    def _determine_optimal_font_size(self, canvas_size_wh, sample_text: str):
+        max_font_size = 100
+        desired_h = canvas_size_wh[1] * self.rel_max_size[0]
+        desired_w = canvas_size_wh[0] * self.rel_max_size[1]
+        for font_size in range(1, max_font_size + 1, 2):
+            font = ImageFont.truetype(self.font + ".ttf", size=font_size)
+            w, h = font.getsize(sample_text)
+            if w > desired_w or h > desired_h:
+                self.optimal_font_size = font_size - 1
+                return
+        self.optimal_font_size = max_font_size
 
 
 def _check_frame_pair_is_correct(left_frame: Frame, right_frame: Frame):
-    assert left_frame.shape == right_frame.shape, (
-        f"Frame pair is expected to have same shape, but found "
-        f"{left_frame.shape} vs {right_frame.shape}"
-    )
+    if left_frame is None and right_frame is None:
+        return np.zeros(shape=(1, 1, 3), dtype=np.uint8), np.zeros(
+            shape=(1, 1, 3), dtype=np.uint8
+        )
+    if left_frame is None:
+        return np.zeros_like(right_frame), right_frame
+    if right_frame is None:
+        return left_frame, np.zeros_like(left_frame)
     assert (
         len(left_frame.shape) == 3 and left_frame.shape[-1] == 3
-    ), f"Frames are expected to be 3-channel colored images"
+    ), "Frames are expected to be 3-channel colored images"
+    if left_frame.shape != right_frame.shape:
+        smallest = min(left_frame.shape, right_frame.shape)
+        return (
+            left_frame[: smallest[0], : smallest[1]],
+            right_frame[: smallest[0], : smallest[1]],
+        )
+    return left_frame, right_frame
 
 
 def ComposeVerticalSplit(
     left_frame: Frame, right_frame: Frame, left_fraction: float = 0.50
 ):
-    _check_frame_pair_is_correct(left_frame, right_frame)
+    left_frame, right_frame = _check_frame_pair_is_correct(left_frame, right_frame)
     merged_frame = np.copy(right_frame)
     threshold = int(left_fraction * left_frame.shape[1])
     merged_frame[:, :threshold] = left_frame[:, :threshold]
@@ -51,17 +81,20 @@ def ComposeSideBySide(left_frame: Frame, right_frame: Frame):
 
 
 class Composer:
-    def __init__(
-        self,
-        compose_func: Callable[[Frame, Frame], Frame],
-        info_provide_func: Callable[[Frame, Frame], str],
-        font_config: FontConfig,
-    ):
-        self.compose_func = compose_func
-        self.info_provide_func = info_provide_func
+    def __init__(self, compose_type: str, font_config: FontConfig, canvas_size_wh=None):
+        if compose_type == "split":
+            self.compose_func = ComposeVerticalSplit
+        elif compose_type == "sbs":
+            self.compose_func = ComposeSideBySide
+        else:
+            self.compose_func = ComposeChessPattern
+        self.info_provide_func = dummy_info
         self.font_config = font_config
         self.optimal_font_size = None
-        self.font = None
+        self.font = ImageFont.truetype(
+            self.font_config.font + ".ttf", size=self.font_config.optimal_font_size
+        )
+        self.canvas_size_wh = canvas_size_wh
 
     def SetComposeFunc(self, compose_func: Callable[[Frame, Frame], np.ndarray]):
         self.compose_func = compose_func
@@ -70,35 +103,7 @@ class Composer:
     def SetInfoProvideFunc(self, info_provide_func: Callable[[Frame, Frame], int]):
         self.info_provide_func = info_provide_func
 
-    def SetFontConfig(self, font_config: FontConfig):
-        self.font_config = font_config
-        self.optimal_font_size = None
-
-    def _determine_optimal_font_size(
-        self, sample_text: str, canvas_shape: Tuple[int, int]
-    ):
-        max_font_size = 100
-        desired_h = canvas_shape[0] * self.font_config.rel_max_size[0]
-        desired_w = canvas_shape[1] * self.font_config.rel_max_size[1]
-        for font_size in range(1, max_font_size + 1):
-            font = ImageFont.truetype(self.font_config.font + ".ttf", size=font_size)
-            w, h = font.getsize(sample_text)
-            if w > desired_w or h > desired_h:
-                self.optimal_font_size = font_size - 1
-                self.font = ImageFont.truetype(
-                    self.font_config.font + ".ttf", size=self.optimal_font_size
-                )
-                return
-        self.optimal_font_size = max_font_size
-        self.font = ImageFont.truetype(
-            self.font_config.font + ".ttf", size=self.optimal_font_size
-        )
-
     def _compose_overlay_text(self, info_text, merged_frame: Image.Image):
-        if self.optimal_font_size is None:
-            self._determine_optimal_font_size(
-                info_text, canvas_shape=tuple(merged_frame.size[::-1])
-            )
 
         img = merged_frame
         img_draw = ImageDraw.Draw(img, mode="RGB")
@@ -130,13 +135,16 @@ class Composer:
     def HandleResize(self, canvas_size_wh):
         self.optimal_font_size = None
 
-    def Compose(self, left_frame: Frame, right_frame: Frame, canvas_size_wh=None):
-        _check_frame_pair_is_correct(left_frame, right_frame)
+    def Compose(self, left_frame: Frame, right_frame: Frame):
+        left_delta = left_frame[1]
+        left_frame, right_frame = _check_frame_pair_is_correct(
+            left_frame[0], right_frame[0] if right_frame is not None else None
+        )
         combined_frame = self.compose_func(left_frame, right_frame)
         combined_frame = Image.fromarray(combined_frame)
         resize_coeff = min(
-            canvas_size_wh[0] / combined_frame.width,
-            canvas_size_wh[1] / combined_frame.height,
+            self.canvas_size_wh[0] / combined_frame.width,
+            self.canvas_size_wh[1] / combined_frame.height,
         )
         combined_frame = combined_frame.resize(
             size=(
@@ -145,7 +153,6 @@ class Composer:
             ),
             resample=Image.NEAREST,
         )
-
         info_to_display = self.info_provide_func(left_frame, right_frame)
         final_frame = self._compose_overlay_text(info_to_display, combined_frame)
-        return final_frame
+        return final_frame, left_delta
