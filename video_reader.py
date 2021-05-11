@@ -94,7 +94,8 @@ class FfmsReader:
         """
         Reads current frame and calculates timestamp delta
         @param frame_idx: index of frame to read
-        @param canvas_size_wh: canvas size. Not used, but is important for caching purposes
+        @param canvas_size_wh: canvas size. Not used, but is important
+        for caching purposes
         (invalidates cache on canvas size change)
         @return:
         """
@@ -133,7 +134,8 @@ class SingleReaderProxy:
 
     def work_cycle(self):
         """
-        Enter working cycle, receiving queries in self.in_queue and sending output in self.out_queue
+        Enter working cycle, receiving queries in self.in_queue and sending output
+         in self.out_queue
         @return:
         """
         try:
@@ -240,7 +242,8 @@ class ProxyReaderPairWrapper:
 
     def execute(self, cmd: str, args_1: Tuple, args_2: Tuple, combine: Callable):
         """
-        Send command for execution to two video readers. Wait for result, combine and send to out_queue
+        Send command for execution to two video readers. Wait for result,
+        combine and send to out_queue
         @param cmd: Command to call
         @param args_1: Args for the first reader
         @param args_2: Args for the second reader
@@ -299,7 +302,8 @@ class ProxyReaderPairWrapper:
 
     def work_cycle(self):
         """
-        Enter working cycle, receiving queries in self.in_queue and sending output in self.out_queue
+        Enter working cycle, receiving queries in self.in_queue and sending output
+         in self.out_queue
         @return:
         """
         need_block = True
@@ -434,7 +438,8 @@ class NonBlockingPairReader:
 
     def on_index_update(self, canvas_size_wh=None):
         """
-        Notify backend that the reading position has been updated (start prefetching current frame)
+        Notify backend that the reading position has been updated
+        (start prefetching current frame)
         @param canvas_size_wh: size of the canvas of the main window
         @return:
         """
@@ -442,7 +447,8 @@ class NonBlockingPairReader:
 
     def has_no_tasks(self) -> bool:
         """
-        Checks whether backend has any unfinished tasks (i.e. frame decoding or resize).
+        Checks whether backend has any unfinished tasks
+        (i.e. frame decoding or resize).
         @return: True if backend has unfinished tasks
         """
         for key in self.last_cmd_data:
@@ -457,9 +463,11 @@ class NonBlockingPairReader:
         self, canvas_size_wh: Tuple[int, int]
     ) -> Tuple[Image.Image, float]:
         """
-        Queues current frame for decoding and returns latest decoded frame. Blocks on the very first call
+        Queues current frame for decoding and returns latest decoded frame.
+        Blocks on the very first call
         @param canvas_size_wh: size of the canvas of the main window
-        @return: Pair of image and timestamp difference (in msec) before the next frame
+        @return: Pair of image and timestamp difference (in msec)
+        to the next frame
         """
         left_idx = None if self.left_pos is None else self.left_pos.next_frame_idx
         right_idx = None if self.right_pos is None else self.right_pos.next_frame_idx
@@ -492,11 +500,12 @@ class NonBlockingPairReader:
 
     def get_next_frame(self, update_frame_idx=True, canvas_size_wh=None):
         """
-        Queues current frame for decoding and returns latest decoded frame. Blocks on the very first call.
+        Queues current frame for decoding and returns latest decoded frame.
+        Blocks on the very first call.
         Tries not to ask for redundant decoding of the current frame several times
         @param update_frame_idx: Whether to update current frame position or not
         @param canvas_size_wh: Size of the canvas of the main window
-        @return: Pair of image and timestamp difference before the next frame
+        @return: Pair of image and timestamp difference to the next frame
         """
         if (
             update_frame_idx
@@ -529,7 +538,7 @@ class NonBlockingPairReader:
     def repeat_last_frame(self) -> Tuple[Image.Image, float]:
         """
         Function to return latest decoded frame one more time
-        @return: Pair of image and timestamp difference (in msec) before the next frame
+        @return: Pair of image and timestamp difference (in msec) to the next frame
         """
         assert (
             "read_frame" in self.last_cmd_data

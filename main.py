@@ -123,7 +123,8 @@ class App(Application):
 
     def _sync_progress_bar_with_videos(self):
         """
-        Synchronizes timeline (pos, min/max) with current offset and videos scroll position
+        Synchronizes timeline (pos, min/max) with current offset
+        and videos scroll position
         @return:
         """
         self._unbind_timeline_events()
@@ -141,10 +142,11 @@ class App(Application):
 
     def _sync_video_with_offset(self):
         """
-        Synchronizes videos with offset. At first it tries to shift right video forward,
-        then it tries to shift left video backwards, at last it updates the offset if
-        the two previous methods failed. It will always result in correct synchronous
-        offset and timeline values, but each of them might be changed during this procedure
+        Synchronizes videos with offset. At first it tries to shift
+        right video forward, then it tries to shift left video backwards,
+        at last it updates the offset if the two previous methods failed.
+        It will always result in correct synchronous offset and timeline
+        values, but each of them might be changed during this procedure
         @return:
         """
         assert self.reader.left_pos is not None and self.reader.right_pos is not None
@@ -191,7 +193,8 @@ class App(Application):
         """
         Draw next frame to canvas
         @param update_frame_idx: Whether to update current frame position
-        @return: time delta (in msec) to the next frame (or 0 in cases when it's unavailable)
+        @return: time delta (in msec) to the next frame
+        (or 0 in cases when it's unavailable)
         """
         canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
         if self.reader.left_pos is None and self.reader.right_pos is None:
@@ -265,7 +268,8 @@ class App(Application):
 
     def video_playback_update(self):
         """
-        Update function. Handles smooth pause (when we have unfinished background tasks,
+        Update function. Handles smooth pause
+        (when we have unfinished background tasks,
         pause is not instant, but keeps everything in sync)
         @return:
         """
@@ -290,7 +294,8 @@ class App(Application):
                 elapsed_time = (new_time - self.last_time) * 1000
                 next_update_time = max((left_delta - elapsed_time), 0)
                 # print(
-                #     self.last_time, new_time, elapsed_time, left_delta, next_update_time
+                #     self.last_time, new_time, elapsed_time,
+                #     left_delta, next_update_time
                 # )
                 self.last_time = new_time
         else:

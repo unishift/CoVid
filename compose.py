@@ -78,7 +78,8 @@ def compose_vertical_split(
     Perform composition using vertical split method
     @param left_frame:
     @param right_frame:
-    @param left_fraction: Fraction of left frame used in composition (remainder is the right frame)
+    @param left_fraction: Fraction of left frame used in composition
+    (remainder is the right frame)
     @return:
     """
     left_frame, right_frame = _check_frame_pair_is_correct(left_frame, right_frame)
@@ -160,7 +161,8 @@ class Composer:
         Performs frame composition, merging two frames and writing text
         @param left_frame:
         @param right_frame:
-        @return: Tuple of Image and left frame delta timestamp (in msec) to the next frame
+        @return: Tuple of Image and left frame delta timestamp (in msec)
+        to the next frame
         """
         left_delta = left_frame[1] if left_frame is not None else 1000 / 24.0
         left_frame, right_frame = _check_frame_pair_is_correct(
