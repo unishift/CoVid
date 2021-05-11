@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Callable, Tuple
+from typing import Tuple
 from PIL import Image, ImageDraw, ImageFont
 
 Frame = np.ndarray
@@ -20,6 +20,17 @@ class FontConfig:
         color: Tuple[int, int, int] = (255, 255, 0),
         rel_max_size: Tuple[float, float] = (0.5, 0.75),
     ):
+        """
+        Font configuration
+        @param canvas_size_wh: Size of the canvas on the main window
+        @param sample_text: Text used to calculate font size
+        @param font: ttf name (for example, "arial")
+        @param location: (y, x) from 0 to 1 each: relative text position
+        (0 == left/top, 1 == bottom/right)
+        @param color: font color
+        @param rel_max_size: fraction of the full frame to be filled with text
+        (used in auto font size calculation)
+        """
         self.font = font
         self.location = location
         self.color = color
@@ -60,9 +71,16 @@ def _check_frame_pair_is_correct(left_frame: Frame, right_frame: Frame):
     return left_frame, right_frame
 
 
-def ComposeVerticalSplit(
+def compose_vertical_split(
     left_frame: Frame, right_frame: Frame, left_fraction: float = 0.50
 ):
+    """
+    Perform composition using vertical split method
+    @param left_frame:
+    @param right_frame:
+    @param left_fraction: Fraction of left frame used in composition (remainder is the right frame)
+    @return:
+    """
     left_frame, right_frame = _check_frame_pair_is_correct(left_frame, right_frame)
     merged_frame = np.copy(right_frame)
     threshold = int(left_fraction * left_frame.shape[1])
@@ -70,12 +88,21 @@ def ComposeVerticalSplit(
     return merged_frame
 
 
-def ComposeChessPattern(left_frame: Frame, right_frame: Frame, cell_size: float = 0.25):
+def compose_chess_pattern(
+    left_frame: Frame, right_frame: Frame, cell_size: float = 0.25
+):
+    """
+    Perform composition using chess method
+    @param left_frame:
+    @param right_frame:
+    @param cell_size: Size of each cell relative to frame width/height
+    @return:
+    """
     _check_frame_pair_is_correct(left_frame, right_frame)
-    raise NotImplementedError("Implement ComposeChessPattern")
+    raise NotImplementedError("Implement compose_chess_pattern")
 
 
-def ComposeSideBySide(left_frame: Frame, right_frame: Frame):
+def compose_side_by_side(left_frame: Frame, right_frame: Frame):
     _check_frame_pair_is_correct(left_frame, right_frame)
     return np.hstack(left_frame, right_frame)
 
@@ -83,25 +110,19 @@ def ComposeSideBySide(left_frame: Frame, right_frame: Frame):
 class Composer:
     def __init__(self, compose_type: str, font_config: FontConfig, canvas_size_wh=None):
         if compose_type == "split":
-            self.compose_func = ComposeVerticalSplit
+            self.compose_func = compose_vertical_split
         elif compose_type == "sbs":
-            self.compose_func = ComposeSideBySide
+            self.compose_func = compose_side_by_side
+        elif compose_type == "chess":
+            self.compose_func = compose_chess_pattern
         else:
-            self.compose_func = ComposeChessPattern
+            raise NotImplementedError("Unknown backend!")
         self.info_provide_func = dummy_info
         self.font_config = font_config
-        self.optimal_font_size = None
         self.font = ImageFont.truetype(
             self.font_config.font + ".ttf", size=self.font_config.optimal_font_size
         )
         self.canvas_size_wh = canvas_size_wh
-
-    def SetComposeFunc(self, compose_func: Callable[[Frame, Frame], np.ndarray]):
-        self.compose_func = compose_func
-        self.optimal_font_size = None
-
-    def SetInfoProvideFunc(self, info_provide_func: Callable[[Frame, Frame], int]):
-        self.info_provide_func = info_provide_func
 
     def _compose_overlay_text(self, info_text, merged_frame: Image.Image):
 
@@ -132,13 +153,19 @@ class Composer:
         )
         return img
 
-    def HandleResize(self, canvas_size_wh):
-        self.optimal_font_size = None
-
-    def Compose(self, left_frame: Frame, right_frame: Frame):
-        left_delta = left_frame[1]
+    def compose(
+        self, left_frame: Frame, right_frame: Frame
+    ) -> Tuple[Image.Image, float]:
+        """
+        Performs frame composition, merging two frames and writing text
+        @param left_frame:
+        @param right_frame:
+        @return: Tuple of Image and left frame delta timestamp (in msec) to the next frame
+        """
+        left_delta = left_frame[1] if left_frame is not None else 1000 / 24.0
         left_frame, right_frame = _check_frame_pair_is_correct(
-            left_frame[0], right_frame[0] if right_frame is not None else None
+            left_frame[0] if left_frame is not None else None,
+            right_frame[0] if right_frame is not None else None,
         )
         combined_frame = self.compose_func(left_frame, right_frame)
         combined_frame = Image.fromarray(combined_frame)
