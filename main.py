@@ -122,10 +122,11 @@ class App(Application):
         self.offset_box.configure(command=self.handle_offset_change)
 
     def _sync_progress_bar_with_videos(self):
-        """
-        Synchronizes timeline (pos, min/max) with current offset
+        """Synchronizes timeline (pos, min/max) with current offset
         and videos scroll position
-        @return:
+
+        Returns:
+
         """
         self._unbind_timeline_events()
         left_length = self.reader.left_pos.get_length()
@@ -141,13 +142,14 @@ class App(Application):
         self._bind_timeline_events()
 
     def _sync_video_with_offset(self):
-        """
-        Synchronizes videos with offset. At first it tries to shift
+        """Synchronizes videos with offset. At first it tries to shift
         right video forward, then it tries to shift left video backwards,
         at last it updates the offset if the two previous methods failed.
         It will always result in correct synchronous offset and timeline
         values, but each of them might be changed during this procedure
-        @return:
+
+        Returns:
+
         """
         assert self.reader.left_pos is not None and self.reader.right_pos is not None
         self._unbind_timeline_events()
@@ -190,10 +192,13 @@ class App(Application):
         self.reader.on_index_update((self.C.winfo_width(), self.C.winfo_height()))
 
     def _videos_next_frame(self, update_frame_idx=True):
-        """
-        Draw next frame to canvas
-        @param update_frame_idx: Whether to update current frame position
-        @return: time delta (in msec) to the next frame
+        """Draw next frame to canvas
+
+        Args:
+            update_frame_idx: Whether to update current frame position
+
+        Returns:
+            time delta (in msec) to the next frame
         (or 0 in cases when it's unavailable)
         """
         canvas_size_wh = self.C.winfo_width(), self.C.winfo_height()
@@ -267,11 +272,12 @@ class App(Application):
             self._update_canvas_image()
 
     def video_playback_update(self):
-        """
-        Update function. Handles smooth pause
+        """Update function. Handles smooth pause
         (when we have unfinished background tasks,
         pause is not instant, but keeps everything in sync)
-        @return:
+
+        Returns:
+
         """
         left_no_tasks = self.reader.left_pos is None or self.reader.has_no_tasks()
         right_no_tasks = self.reader.right_pos is None or self.reader.has_no_tasks()
