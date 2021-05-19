@@ -20,15 +20,17 @@ class FontConfig:
         color: Tuple[int, int, int] = (255, 255, 0),
         rel_max_size: Tuple[float, float] = (0.5, 0.75),
     ):
-        """
-        Font configuration
-        @param canvas_size_wh: Size of the canvas on the main window
-        @param sample_text: Text used to calculate font size
-        @param font: ttf name (for example, "arial")
-        @param location: (y, x) from 0 to 1 each: relative text position
+        """Font configuration
+
+        Args:
+            canvas_size_wh: Size of the canvas on the main window
+            sample_text: Text used to calculate font size
+            font: ttf name (for example, "arial")
+            location: (y, x) from 0 to 1 each: relative text position
+            color: font color
+            rel_max_size: fraction of the full frame to be filled with
+                text
         (0 == left/top, 1 == bottom/right)
-        @param color: font color
-        @param rel_max_size: fraction of the full frame to be filled with text
         (used in auto font size calculation)
         """
         self.font = font
@@ -74,13 +76,16 @@ def _check_frame_pair_is_correct(left_frame: Frame, right_frame: Frame):
 def compose_vertical_split(
     left_frame: Frame, right_frame: Frame, left_fraction: float = 0.50
 ):
-    """
-    Perform composition using vertical split method
-    @param left_frame:
-    @param right_frame:
-    @param left_fraction: Fraction of left frame used in composition
+    """Perform composition using vertical split method
+
+    Args:
+        left_frame
+        right_frame
+        left_fraction: Fraction of left frame used in composition
     (remainder is the right frame)
-    @return:
+
+    Returns:
+
     """
     left_frame, right_frame = _check_frame_pair_is_correct(left_frame, right_frame)
     merged_frame = np.copy(right_frame)
@@ -92,12 +97,15 @@ def compose_vertical_split(
 def compose_chess_pattern(
     left_frame: Frame, right_frame: Frame, cell_size: float = 0.25
 ):
-    """
-    Perform composition using chess method
-    @param left_frame:
-    @param right_frame:
-    @param cell_size: Size of each cell relative to frame width/height
-    @return:
+    """Perform composition using chess method
+
+    Args:
+        left_frame
+        right_frame
+        cell_size: Size of each cell relative to frame width/height
+
+    Returns:
+
     """
     _check_frame_pair_is_correct(left_frame, right_frame)
     raise NotImplementedError("Implement compose_chess_pattern")
@@ -157,11 +165,14 @@ class Composer:
     def compose(
         self, left_frame: Frame, right_frame: Frame
     ) -> Tuple[Image.Image, float]:
-        """
-        Performs frame composition, merging two frames and writing text
-        @param left_frame:
-        @param right_frame:
-        @return: Tuple of Image and left frame delta timestamp (in msec)
+        """Performs frame composition, merging two frames and writing text
+
+        Args:
+            left_frame
+            right_frame
+
+        Returns:
+            Tuple of Image and left frame delta timestamp (in msec)
         to the next frame
         """
         left_delta = left_frame[1] if left_frame is not None else 1000 / 24.0

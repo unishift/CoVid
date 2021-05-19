@@ -72,10 +72,13 @@ class FfmsReader:
         return self.length
 
     def update_video_size(self, canvas_size_wh):
-        """
-        Updates internal FFMS scaling method
-        @param canvas_size_wh:
-        @return:
+        """Updates internal FFMS scaling method
+
+        Args:
+            canvas_size_wh
+
+        Returns:
+
         """
         resize_coeff = min(
             canvas_size_wh[0] / self.enc_width, canvas_size_wh[1] / self.enc_height
@@ -91,13 +94,16 @@ class FfmsReader:
         )
 
     def read_frame(self, frame_idx, canvas_size_wh):
-        """
-        Reads current frame and calculates timestamp delta
-        @param frame_idx: index of frame to read
-        @param canvas_size_wh: canvas size. Not used, but is important
+        """Reads current frame and calculates timestamp delta
+
+        Args:
+            frame_idx: index of frame to read
+            canvas_size_wh: canvas size. Not used, but is important
         for caching purposes
         (invalidates cache on canvas size change)
-        @return:
+
+        Returns:
+
         """
         frame = self.vsource.get_frame(frame_idx)
         width = frame.ScaledWidth or frame.EncodedWidth
@@ -133,10 +139,11 @@ class SingleReaderProxy:
         self.out_queue = out_queue
 
     def work_cycle(self):
-        """
-        Enter working cycle, receiving queries in self.in_queue and sending output
+        """Enter working cycle, receiving queries in self.in_queue and sending output
          in self.out_queue
-        @return:
+
+        Returns:
+
         """
         try:
             reader = FfmsReader(self.video_path)
@@ -159,12 +166,15 @@ class SingleReaderProxy:
 def spawn_async_reader(
     video_path: Union[str, pathlib.Path], in_queue: Queue, out_queue: Queue
 ):
-    """
-    Stub function to be used from Process().start
-    @param video_path: Path to video to read
-    @param in_queue: Input queue
-    @param out_queue: Output queue
-    @return:
+    """Stub function to be used from Process().start
+
+    Args:
+        video_path: Path to video to read
+        in_queue: Input queue
+        out_queue: Output queue
+
+    Returns:
+
     """
     reader = SingleReaderProxy(video_path, in_queue, out_queue)
     reader.work_cycle()
@@ -241,25 +251,32 @@ class ProxyReaderPairWrapper:
             return ans
 
     def execute(self, cmd: str, args_1: Tuple, args_2: Tuple, combine: Callable):
-        """
-        Send command for execution to two video readers. Wait for result,
+        """Send command for execution to two video readers. Wait for result,
         combine and send to out_queue
-        @param cmd: Command to call
-        @param args_1: Args for the first reader
-        @param args_2: Args for the second reader
-        @param combine: Function
-        @return:
+
+        Args:
+            cmd: Command to call
+            args_1: Args for the first reader
+            args_2: Args for the second reader
+            combine: Function
+
+        Returns:
+
         """
         ans = self._local_exec(cmd, args_1, args_2, combine)
         self.out_queue.put((cmd, (args_1, args_2), ans))
 
     def reconfigure_paths(self, video_path_1, video_path_2, return_length=True):
-        """
-        Create readers from scratch, optionally reporting their lengths
-        @param video_path_1: Path to the left video
-        @param video_path_2: Path to the right video
-        @param return_length: Whether to put get_length result in self.out_queue
-        @return:
+        """Create readers from scratch, optionally reporting their lengths
+
+        Args:
+            video_path_1: Path to the left video
+            video_path_2: Path to the right video
+            return_length: Whether to put get_length result in
+                self.out_queue
+
+        Returns:
+
         """
         if self.left_process is not None:
             self.left_process.end()
@@ -301,10 +318,11 @@ class ProxyReaderPairWrapper:
             self.out_queue.put(("get_length", ((), ()), status))
 
     def work_cycle(self):
-        """
-        Enter working cycle, receiving queries in self.in_queue and sending output
+        """Enter working cycle, receiving queries in self.in_queue and sending output
          in self.out_queue
-        @return:
+
+        Returns:
+
         """
         need_block = True
         while True:
@@ -347,13 +365,16 @@ def spawn_pairs_reader(
     in_queue: Queue,
     out_queue: Queue,
 ):
-    """
-    Stub function to be used in Process()
-    @param video_path_1: Path to first video
-    @param video_path_2: Path to second video
-    @param in_queue: Input queue
-    @param out_queue: Output queue
-    @return:
+    """Stub function to be used in Process()
+
+    Args:
+        video_path_1: Path to first video
+        video_path_2: Path to second video
+        in_queue: Input queue
+        out_queue: Output queue
+
+    Returns:
+
     """
     reader = ProxyReaderPairWrapper(video_path_1, video_path_2, in_queue, out_queue)
     reader.work_cycle()
@@ -362,8 +383,9 @@ def spawn_pairs_reader(
 class NonBlockingPairReader:
     def __init__(self, composer_type: str):
         """
-
-        @param composer_type: "split", "sbs" or "chess" - what composer type to use
+        Args:
+            composer_type: "split", "sbs" or "chess" - what composer
+                type to use
         """
         self.in_queue = Queue()
         self.out_queue = Queue()
@@ -437,19 +459,23 @@ class NonBlockingPairReader:
         self.in_queue.put((cmd, args, flags, combine))
 
     def on_index_update(self, canvas_size_wh=None):
-        """
-        Notify backend that the reading position has been updated
+        """Notify backend that the reading position has been updated
         (start prefetching current frame)
-        @param canvas_size_wh: size of the canvas of the main window
-        @return:
+
+        Args:
+            canvas_size_wh: size of the canvas of the main window
+
+        Returns:
+
         """
         self.get_next_frame(update_frame_idx=False, canvas_size_wh=canvas_size_wh)
 
     def has_no_tasks(self) -> bool:
-        """
-        Checks whether backend has any unfinished tasks
+        """Checks whether backend has any unfinished tasks
         (i.e. frame decoding or resize).
-        @return: True if backend has unfinished tasks
+
+        Returns:
+            True if backend has unfinished tasks
         """
         for key in self.last_cmd_data:
             if (
@@ -462,11 +488,14 @@ class NonBlockingPairReader:
     def read_current_frame(
         self, canvas_size_wh: Tuple[int, int]
     ) -> Tuple[Image.Image, float]:
-        """
-        Queues current frame for decoding and returns latest decoded frame.
+        """Queues current frame for decoding and returns latest decoded frame.
         Blocks on the very first call
-        @param canvas_size_wh: size of the canvas of the main window
-        @return: Pair of image and timestamp difference (in msec)
+
+        Args:
+            canvas_size_wh: size of the canvas of the main window
+
+        Returns:
+            Pair of image and timestamp difference (in msec)
         to the next frame
         """
         left_idx = None if self.left_pos is None else self.left_pos.next_frame_idx
@@ -499,13 +528,17 @@ class NonBlockingPairReader:
         )
 
     def get_next_frame(self, update_frame_idx=True, canvas_size_wh=None):
-        """
-        Queues current frame for decoding and returns latest decoded frame.
+        """Queues current frame for decoding and returns latest decoded frame.
         Blocks on the very first call.
         Tries not to ask for redundant decoding of the current frame several times
-        @param update_frame_idx: Whether to update current frame position or not
-        @param canvas_size_wh: Size of the canvas of the main window
-        @return: Pair of image and timestamp difference to the next frame
+
+        Args:
+            update_frame_idx: Whether to update current frame position
+                or not
+            canvas_size_wh: Size of the canvas of the main window
+
+        Returns:
+            Pair of image and timestamp difference to the next frame
         """
         if (
             update_frame_idx
@@ -522,10 +555,13 @@ class NonBlockingPairReader:
         return array, this_frame_delta
 
     def update_video_size(self, canvas_size_wh: Tuple[int, int]):
-        """
-        Updates backend decoder's output video size according to the canvas size
-        @param canvas_size_wh: Size of the canvas of the main window
-        @return:
+        """Updates backend decoder's output video size according to the canvas size
+
+        Args:
+            canvas_size_wh: Size of the canvas of the main window
+
+        Returns:
+
         """
         self.font_config = compose.FontConfig(canvas_size_wh, self.sample_text)
         self._async_call(
@@ -536,9 +572,11 @@ class NonBlockingPairReader:
         )
 
     def repeat_last_frame(self) -> Tuple[Image.Image, float]:
-        """
-        Function to return latest decoded frame one more time
-        @return: Pair of image and timestamp difference (in msec) to the next frame
+        """Function to return latest decoded frame one more time
+
+        Returns:
+            Pair of image and timestamp difference (in msec) to the next
+            frame
         """
         assert (
             "read_frame" in self.last_cmd_data
