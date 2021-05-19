@@ -13,12 +13,10 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install requirements
-      run: |
-        pip install -r requirements.txt
+      run: pip install -r docs/requirements.txt
 
-    - uses: ammaraskar/sphinx-action@master
-      with:
-        docs-folder: "docs/"
+    - name: Run Sphinx
+      run: make html SPHINXOPTS="-W --keep-going -n" -C docs
 
     - uses: actions/upload-artifact@v2
       if: github.ref == 'refs/heads/docs'
