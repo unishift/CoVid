@@ -20,6 +20,12 @@ jobs:
       with:
         docs-folder: "docs/"
 
+    - uses: actions/upload-artifact@v2
+      if: github.ref == 'refs/heads/docs'
+      with:
+        name: docs-latest
+        path: docs/_build/html
+
   deploy:
     runs-on: ubuntu-latest
     needs: build
@@ -30,9 +36,13 @@ jobs:
           ref: gh-pages
           clean: false
 
+      - uses: actions/download-artifact@v2
+        with:
+          name: docs-latest
+
       - name: Commit documentation changes
         run: |
-          cp -rf docs/_build/html/* .
+          cp -rf html/* .
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git commit -m "Update documentation" -a || true
