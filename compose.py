@@ -182,17 +182,7 @@ class Composer:
         )
         combined_frame = self.compose_func(left_frame, right_frame)
         combined_frame = Image.fromarray(combined_frame)
-        resize_coeff = min(
-            self.canvas_size_wh[0] / combined_frame.width,
-            self.canvas_size_wh[1] / combined_frame.height,
-        )
-        combined_frame = combined_frame.resize(
-            size=(
-                int(combined_frame.width * resize_coeff),
-                int(combined_frame.height * resize_coeff),
-            ),
-            resample=Image.NEAREST,
-        )
+
         info_to_display = self.info_provide_func(left_frame, right_frame)
         final_frame = self._compose_overlay_text(info_to_display, combined_frame)
         return final_frame, left_delta

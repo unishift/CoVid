@@ -61,7 +61,9 @@ class FfmsReader:
             ffms2.FFMS_TYPE_VIDEO
         )
         self.vsource = ffms2.VideoSource(str(video_path), self.track_number, self.index)
-        self.vsource.set_output_format([ffms2.get_pix_fmt("rgb24")])
+        self.vsource.set_output_format(
+            [ffms2.get_pix_fmt("rgb24")], resizer=ffms2.FFMS_RESIZER_FAST_BILINEAR
+        )
         self.length = self.vsource.properties.NumFrames
 
         frame = self.vsource.get_frame(0)
@@ -153,14 +155,11 @@ class SingleReaderProxy:
         while True:
             query = self.in_queue.get(block=True)
             cmd, args = query
-            if cmd == "_exit":
-                break
-            else:
-                try:
-                    result = getattr(reader, cmd)(*args)
-                    self.out_queue.put((cmd, args, result))
-                except Exception as e:
-                    self.out_queue.put((cmd, args, e))
+            try:
+                result = getattr(reader, cmd)(*args)
+                self.out_queue.put((cmd, args, result))
+            except Exception as e:
+                self.out_queue.put((cmd, args, e))
 
 
 def spawn_async_reader(
@@ -281,14 +280,11 @@ class ProxyReaderPairWrapper:
         if self.left_process is not None:
             self.left_process.end()
             self.left_process = None
-            self.left_reader = None
         if self.right_process is not None:
             self.right_process.end()
             self.right_process = None
-            self.right_reader = None
 
         if video_path_1 is not None:
-            self.left_reader = SingleReaderProxy(video_path_1, Queue(), Queue())
             q1, q2 = Queue(), Queue()
             left_process = multiprocessing.Process(
                 target=spawn_async_reader, args=(video_path_1, q1, q2)
@@ -297,7 +293,6 @@ class ProxyReaderPairWrapper:
             self.left_process.start()
 
         if video_path_2 is not None:
-            self.right_reader = SingleReaderProxy(video_path_2, Queue(), Queue())
             q3, q4 = Queue(), Queue()
             right_process = multiprocessing.Process(
                 target=spawn_async_reader, args=(video_path_2, q3, q4)
@@ -307,11 +302,9 @@ class ProxyReaderPairWrapper:
 
         status = self._local_exec("get_length", (), (), None)
         if isinstance(status[0], BaseException):
-            self.left_reader = None
             self.left_process.end()
             self.left_process = None
         if isinstance(status[1], BaseException):
-            self.right_reader = None
             self.right_process.end()
             self.right_process = None
         if return_length:
@@ -348,9 +341,7 @@ class ProxyReaderPairWrapper:
             cmd, args, flags, combine = query
             cmd: str
             flags: TaskExecuteFlags
-            if cmd == "_exit":
-                break
-            elif cmd == "_reconfigure":
+            if cmd == "_reconfigure":
                 self.reconfigure_paths(*args)
             else:
                 if flags.skip_to_last:
@@ -583,3 +574,8 @@ class NonBlockingPairReader:
         ), "Call to RepeatLastFrame, but it is None"
         self._read_all_responses(False)
         return self.last_cmd_data["read_frame"][0]
+
+    def close(self):
+        self.left_file = None
+        self.right_file = None
+        self.reader.kill()

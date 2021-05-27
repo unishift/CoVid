@@ -51,6 +51,7 @@ class App(Application):
         self.resize_delay_counter = 0
         self.last_canvas_size = (self.C.winfo_width(), self.C.winfo_height())
         self.reader = video_reader.NonBlockingPairReader("split")
+        self.master.protocol("WM_DELETE_WINDOW", self.handle_close)
 
     def create_widgets(self):
         super().create_widgets()
@@ -217,13 +218,9 @@ class App(Application):
         if update_frame_idx:
             self._sync_progress_bar_with_videos()
 
-        if (
-            True
-            or self.last_image is None
-            or (
-                frame.height != self.last_image.height()
-                or frame.width != self.last_image.width()
-            )
+        if self.last_image is None or (
+            frame.height != self.last_image.height()
+            or frame.width != self.last_image.width()
         ):
             self.last_image = ImageTk.PhotoImage(frame)
             self.C.configure(image=self.last_image)
@@ -248,6 +245,10 @@ class App(Application):
             self.last_canvas_size = canvas_size_wh
             self.reader.update_video_size(canvas_size_wh)
             self._update_canvas_image()
+
+    def handle_close(self):
+        self.reader.close()
+        self.master.destroy()
 
     def toggle_pause(self, event):
         if self.paused:
