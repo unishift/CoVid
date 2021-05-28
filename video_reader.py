@@ -262,8 +262,11 @@ class ProxyReaderPairWrapper:
         Returns:
 
         """
-        ans = self._local_exec(cmd, args_1, args_2, combine)
-        self.out_queue.put((cmd, (args_1, args_2), ans))
+        try:
+            ans = self._local_exec(cmd, args_1, args_2, combine)
+            self.out_queue.put((cmd, (args_1, args_2), ans))
+        except Exception as e:
+            self.out_queue.put((cmd, (args_1, args_2), [e, None]))
 
     def reconfigure_paths(self, video_path_1, video_path_2, return_length=True):
         """Create readers from scratch, optionally reporting their lengths
