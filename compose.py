@@ -103,20 +103,29 @@ def compose_chess_pattern(
     """Perform composition using chess method
 
     Args:
-        left_frame
+        left_frame: top left tile
         right_frame
-        cell_size: Size of each cell relative to frame width/height
+        cell_size: Size of each cell relative to frame height
 
     Returns:
 
     """
-    _check_frame_pair_is_correct(left_frame, right_frame)
-    raise NotImplementedError("Implement compose_chess_pattern")
+    left_frame, right_frame = _check_frame_pair_is_correct(left_frame, right_frame)
+    h, w, _ = left_frame.shape
+    cell_width = int(h * cell_size)
+    unit = np.repeat(
+        np.repeat([[1, 0], [0, 1]], cell_width, axis=0), cell_width, axis=1
+    )
+    chess_pattern = np.tile(unit, (h // cell_width + 1, w // cell_width + 1))[
+        :h, :w, np.newaxis
+    ]
+    frame = np.where(chess_pattern, left_frame, right_frame)
+    return frame
 
 
 def compose_side_by_side(left_frame: Frame, right_frame: Frame):
     _check_frame_pair_is_correct(left_frame, right_frame)
-    return np.hstack(left_frame, right_frame)
+    return np.hstack((left_frame, right_frame))
 
 
 class Composer:
@@ -137,7 +146,6 @@ class Composer:
         self.canvas_size_wh = canvas_size_wh
 
     def _compose_overlay_text(self, info_text, merged_frame: Image.Image):
-
         img = merged_frame
         img_draw = ImageDraw.Draw(img, mode="RGB")
         text_w, text_h = self.font.getsize_multiline(info_text)

@@ -451,6 +451,8 @@ class NonBlockingPairReader:
     def _async_call(self, cmd, flags, args, combine):
         self.last_input[cmd] = args
         self.in_queue.put((cmd, args, flags, combine))
+        if cmd in self.last_cmd_data:  # todo more testing
+            del self.last_cmd_data[cmd]
 
     def on_index_update(self, canvas_size_wh=None):
         """Notify backend that the reading position has been updated

@@ -53,9 +53,10 @@ class App(Application):
         self.reader = video_reader.NonBlockingPairReader("split")
         self.master.protocol("WM_DELETE_WINDOW", self.handle_close)
 
+        self.create_menu()
+
     def create_widgets(self):
         super().create_widgets()
-        self.create_menu()
 
         self.C = tk.Label(self)  # , background="gray75")
         self.C.grid(sticky="NEWS")
@@ -102,6 +103,7 @@ class App(Application):
 
         self.master.bind("<Configure>", self.handle_resize)
         self.master.bind("<space>", self.toggle_pause)
+        # todo bind forwarding
 
     def configure_widgets(self):
         super().configure_widgets()
@@ -366,9 +368,15 @@ class App(Application):
         menu_bar.add_cascade(label=_("File"), menu=file_menu)
 
         view_menu = tk.Menu(menu_bar, tearoff=0)
-        view_menu.add_radiobutton(label=_("Side-by-side"), command=None)
-        view_menu.add_radiobutton(label=_("Chess pattern"), command=None)
-        view_menu.add_radiobutton(label=_("Curtain"), command=None)
+        view_menu.add_radiobutton(
+            label=_("Side-by-side"), command=self.select_composer_type("sbs")
+        )
+        view_menu.add_radiobutton(
+            label=_("Chess pattern"), command=self.select_composer_type("chess")
+        )
+        view_menu.add_radiobutton(
+            label=_("Curtain"), command=self.select_composer_type("split")
+        )
         view_menu.invoke(0)
         menu_bar.add_cascade(label=_("View"), menu=view_menu)
 
@@ -378,10 +386,26 @@ class App(Application):
         metrics_menu.add_checkbutton(label="NIQE", command=None)
         menu_bar.add_cascade(label=_("Metrics"), menu=metrics_menu)
 
+    def select_composer_type(self, composer_type: str):
+        def wrapper():
+            self.reader.composer_type = composer_type
+            # self._full_interface_sync()
+            self._update_canvas_image()
+
+        return wrapper
+
 
 def main():
     app = App(title="<None> and <None> | CoVid")  # TODO update title
     app.master.geometry("600x400")
+
+    app.reader.create_left_reader(
+        os.path.join(os.path.dirname(__file__), "samples", "foreman_crf30_short.mp4")
+    )
+    app.reader.create_right_reader(
+        os.path.join(os.path.dirname(__file__), "samples", "foreman_crf40_short.mp4")
+    )
+
     app.mainloop()
 
 
