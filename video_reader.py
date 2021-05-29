@@ -73,17 +73,19 @@ class FfmsReader:
     def get_length(self):
         return self.length
 
-    def update_video_size(self, canvas_size_wh):
+    def update_video_size(self, canvas_size_wh, width_multiplier=1.0):
         """Updates internal FFMS scaling method
 
         Args:
-            canvas_size_wh
+            canvas_size_wh: target (width, height)
+            width_multiplier: 0.5 for side-by-side view, otherwise 1.0
 
         Returns:
 
         """
         resize_coeff = min(
-            canvas_size_wh[0] / self.enc_width, canvas_size_wh[1] / self.enc_height
+            canvas_size_wh[0] * width_multiplier / self.enc_width,
+            canvas_size_wh[1] / self.enc_height
         )
         new_shape = (
             int(self.enc_width * resize_coeff),
@@ -451,8 +453,6 @@ class NonBlockingPairReader:
     def _async_call(self, cmd, flags, args, combine):
         self.last_input[cmd] = args
         self.in_queue.put((cmd, args, flags, combine))
-        if cmd in self.last_cmd_data:  # todo more testing
-            del self.last_cmd_data[cmd]
 
     def on_index_update(self, canvas_size_wh=None):
         """Notify backend that the reading position has been updated
@@ -560,10 +560,11 @@ class NonBlockingPairReader:
 
         """
         self.font_config = compose.FontConfig(canvas_size_wh, self.sample_text)
+        width_multiplier = 0.5 if self.composer_type == "sbs" else 1.0
         self._async_call(
             "update_video_size",
             TaskExecuteFlags(skip_to_last=True, priority=1),
-            ((canvas_size_wh,), (canvas_size_wh,)),
+            ((canvas_size_wh, width_multiplier), (canvas_size_wh, width_multiplier)),
             None,
         )
 

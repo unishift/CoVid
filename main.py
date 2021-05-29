@@ -342,6 +342,7 @@ class App(Application):
                 messagebox.showerror(type(e).__name__, str(e))
             self._on_select_canvas_update(self.reader.left_pos, self.reader.right_pos)
         self._update_canvas_image()
+        self.update_title()
 
     def select_right_video(self):
         fname = self._select_video_safe()
@@ -352,6 +353,7 @@ class App(Application):
                 messagebox.showerror(type(e).__name__, str(e))
             self._on_select_canvas_update(self.reader.right_pos, self.reader.left_pos)
         self._update_canvas_image()
+        self.update_title()
 
     def create_menu(self):
         menu_bar = tk.Menu(self)
@@ -389,14 +391,23 @@ class App(Application):
     def select_composer_type(self, composer_type: str):
         def wrapper():
             self.reader.composer_type = composer_type
-            # self._full_interface_sync()
+            self.reader.last_input["read_frame"] = None  # drop cache
             self._update_canvas_image()
 
         return wrapper
 
+    def update_title(self):
+        left_file = self.reader.left_file
+        right_file = self.reader.right_file
+        if left_file:
+            left_file = os.path.basename(left_file)
+        if right_file:
+            right_file = os.path.basename(right_file)
+        self.master.title(f"{left_file} vs {right_file} | CoVid")
+
 
 def main():
-    app = App(title="<None> and <None> | CoVid")  # TODO update title
+    app = App(title="<None> and <None> | CoVid")
     app.master.geometry("600x400")
 
     app.reader.create_left_reader(
@@ -405,6 +416,7 @@ def main():
     app.reader.create_right_reader(
         os.path.join(os.path.dirname(__file__), "samples", "foreman_crf40_short.mp4")
     )
+    app.update_title()
 
     app.mainloop()
 
