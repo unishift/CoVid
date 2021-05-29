@@ -8,6 +8,7 @@ from functools import partial
 from PIL import ImageTk
 
 import video_reader
+from metrics import VQMTMetrics
 
 gettext.install("covid", os.path.dirname(__file__))
 
@@ -52,6 +53,12 @@ class App(Application):
         self.last_canvas_size = (self.C.winfo_width(), self.C.winfo_height())
         self.reader = video_reader.NonBlockingPairReader("split")
         self.master.protocol("WM_DELETE_WINDOW", self.handle_close)
+        self.metrics = [
+            ("PSNR, Y", (tk.BooleanVar(), VQMTMetrics.PSNR_Y)),
+            ("SSIM, Y", (tk.BooleanVar(), VQMTMetrics.SSIM_Y)),
+            ("NIQE, Y", (tk.BooleanVar(), VQMTMetrics.NIQE_Y)),
+            ("VMAF v0.6.1, Y", (tk.BooleanVar(), VQMTMetrics.VMAF061_Y)),
+        ]
 
         self.create_menu()
 
@@ -383,9 +390,14 @@ class App(Application):
         menu_bar.add_cascade(label=_("View"), menu=view_menu)
 
         metrics_menu = tk.Menu(menu_bar, tearoff=0)
-        metrics_menu.add_checkbutton(label="PSNR", command=None)
-        metrics_menu.add_checkbutton(label="SSIM", command=None)
-        metrics_menu.add_checkbutton(label="NIQE", command=None)
+        for metric_label, (bool_var, query) in self.metrics:
+            metrics_menu.add_checkbutton(
+                label=metric_label,
+                onvalue=1,
+                offvalue=0,
+                variable=bool_var,
+                command=self.update_metrics,
+            )
         menu_bar.add_cascade(label=_("Metrics"), menu=metrics_menu)
 
     def select_composer_type(self, composer_type: str):
@@ -404,6 +416,13 @@ class App(Application):
         if right_file:
             right_file = os.path.basename(right_file)
         self.master.title(f"{left_file} vs {right_file} | CoVid")
+
+    def update_metrics(self):
+        self.reader.metrics = [
+            (label, query) for label, (v, query) in self.metrics if v.get()
+        ]
+        self.reader.last_input["read_frame"] = None  # drop cache
+        self._update_canvas_image()
 
 
 def main():

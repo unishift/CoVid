@@ -7,10 +7,6 @@ from PIL import Image, ImageDraw, ImageFont
 Frame = np.ndarray
 
 
-def dummy_info(*args):
-    return "PSNR:24.07070707\nSSIM:228.14888"
-
-
 class FontConfig:
     def __init__(
         self,
@@ -129,7 +125,13 @@ def compose_side_by_side(left_frame: Frame, right_frame: Frame):
 
 
 class Composer:
-    def __init__(self, compose_type: str, font_config: FontConfig, canvas_size_wh=None):
+    def __init__(
+        self,
+        compose_type: str,
+        font_config: FontConfig,
+        metrics: dict,
+        canvas_size_wh=None,
+    ):
         if compose_type == "split":
             self.compose_func = compose_vertical_split
         elif compose_type == "sbs":
@@ -138,12 +140,12 @@ class Composer:
             self.compose_func = compose_chess_pattern
         else:
             raise NotImplementedError("Unknown backend!")
-        self.info_provide_func = dummy_info
         self.font_config = font_config
         self.font = ImageFont.truetype(
             self.font_config.font + ".ttf", size=self.font_config.optimal_font_size
         )
         self.canvas_size_wh = canvas_size_wh
+        self.metrics = metrics
 
     def _compose_overlay_text(self, info_text, merged_frame: Image.Image):
         img = merged_frame
@@ -173,6 +175,15 @@ class Composer:
         )
         return img
 
+    def format_text(self):
+        rows = []
+        for label, values in self.metrics:
+            left, right = values
+            left = "None" if left is None else f"{left:.03f}"
+            right = "None" if right is None else f"{right:.03f}"
+            rows.append(f"{label}: {left} vs. {right}")
+        return "\n".join(rows)
+
     def compose(
         self, left_frame: Frame, right_frame: Frame
     ) -> Tuple[Image.Image, float]:
@@ -194,6 +205,6 @@ class Composer:
         combined_frame = self.compose_func(left_frame, right_frame)
         combined_frame = Image.fromarray(combined_frame)
 
-        info_to_display = self.info_provide_func(left_frame, right_frame)
+        info_to_display = self.format_text()
         final_frame = self._compose_overlay_text(info_to_display, combined_frame)
         return final_frame, left_delta
