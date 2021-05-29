@@ -85,7 +85,7 @@ class FfmsReader:
         """
         resize_coeff = min(
             canvas_size_wh[0] * width_multiplier / self.enc_width,
-            canvas_size_wh[1] / self.enc_height
+            canvas_size_wh[1] / self.enc_height,
         )
         new_shape = (
             int(self.enc_width * resize_coeff),
