@@ -11,7 +11,7 @@ from PIL import Image
 import compose
 from metrics import VQMTMetrics
 
-from typing import Union, NamedTuple, Tuple, Callable, List
+from typing import Union, NamedTuple, Tuple, Callable
 
 main_thread = threading.current_thread()
 
@@ -103,7 +103,8 @@ class FfmsReader:
 
         Args:
             frame_idx: index of frame to read
-            canvas_size_wh: canvas size. Not used, but is important for caching purposes (invalidates cache on canvas size change)
+            canvas_size_wh: canvas size. Not used, but is important
+                for caching purposes (invalidates cache on canvas size change)
 
         Returns: frame, time_delta
 
