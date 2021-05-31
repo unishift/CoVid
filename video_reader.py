@@ -9,6 +9,7 @@ import pathlib
 from PIL import Image
 
 import compose
+from metrics import VQMTMetrics
 
 from typing import Union, NamedTuple, Tuple, Callable
 
@@ -73,17 +74,19 @@ class FfmsReader:
     def get_length(self):
         return self.length
 
-    def update_video_size(self, canvas_size_wh):
+    def update_video_size(self, canvas_size_wh, width_multiplier=1.0):
         """Updates internal FFMS scaling method
 
         Args:
-            canvas_size_wh
+            canvas_size_wh: target (width, height)
+            width_multiplier: 0.5 for side-by-side view, otherwise 1.0
 
         Returns:
 
         """
         resize_coeff = min(
-            canvas_size_wh[0] / self.enc_width, canvas_size_wh[1] / self.enc_height
+            canvas_size_wh[0] * width_multiplier / self.enc_width,
+            canvas_size_wh[1] / self.enc_height,
         )
         new_shape = (
             int(self.enc_width * resize_coeff),
@@ -101,10 +104,9 @@ class FfmsReader:
         Args:
             frame_idx: index of frame to read
             canvas_size_wh: canvas size. Not used, but is important
-        for caching purposes
-        (invalidates cache on canvas size change)
+                for caching purposes (invalidates cache on canvas size change)
 
-        Returns:
+        Returns: frame, time_delta
 
         """
         frame = self.vsource.get_frame(frame_idx)
@@ -262,8 +264,11 @@ class ProxyReaderPairWrapper:
         Returns:
 
         """
-        ans = self._local_exec(cmd, args_1, args_2, combine)
-        self.out_queue.put((cmd, (args_1, args_2), ans))
+        try:
+            ans = self._local_exec(cmd, args_1, args_2, combine)
+            self.out_queue.put((cmd, (args_1, args_2), ans))
+        except Exception as e:
+            self.out_queue.put((cmd, (args_1, args_2), [e, None]))
 
     def reconfigure_paths(self, video_path_1, video_path_2, return_length=True):
         """Create readers from scratch, optionally reporting their lengths
@@ -386,12 +391,15 @@ class NonBlockingPairReader:
         self.right_pos: PlaybackPosition = None
         self.left_file: str = None
         self.right_file: str = None
+        self.left_metrics = VQMTMetrics()
+        self.right_metrics = VQMTMetrics()
         self.composer_type = composer_type
         self.sample_text = "PSNR=34.57890123\nSSIM=0.99987123"
         self.font_config: compose.FontConfig = None
         self.reader = multiprocessing.Process(
             target=spawn_pairs_reader, args=(None, None, self.in_queue, self.out_queue)
         )
+        self.metrics = []
         self.reader.start()
 
     def create_left_reader(self, new_file: Union[str, pathlib.Path]):
@@ -401,6 +409,9 @@ class NonBlockingPairReader:
     def create_right_reader(self, new_file: Union[str, pathlib.Path]):
         self.right_file = str(new_file)
         self._recreate_readers()
+
+    def _video_to_metrics_path(self, video_path: str):
+        return pathlib.Path(video_path).with_suffix(".json")  # todo regexp
 
     def _recreate_readers(self):
         if "get_length" in self.last_cmd_data:
@@ -433,6 +444,11 @@ class NonBlockingPairReader:
             self.right_pos = PlaybackPosition(readers_lengths[1])
         else:
             self.right_pos = None
+
+        if self.left_file:
+            self.left_metrics.load(self._video_to_metrics_path(self.left_file))
+        if self.right_file:
+            self.right_metrics.load(self._video_to_metrics_path(self.right_file))
 
     def _read_all_responses(self, wait_for_first=False, first_timeout=0.5):
         while True:
@@ -499,6 +515,7 @@ class NonBlockingPairReader:
                 "compose_type": self.composer_type,
                 "canvas_size_wh": canvas_size_wh,
                 "font_config": self.font_config,
+                "metrics": self.get_metrics(left_idx, right_idx),
             },
         )
         self._read_all_responses(False)
@@ -555,10 +572,11 @@ class NonBlockingPairReader:
 
         """
         self.font_config = compose.FontConfig(canvas_size_wh, self.sample_text)
+        width_multiplier = 0.5 if self.composer_type == "sbs" else 1.0
         self._async_call(
             "update_video_size",
             TaskExecuteFlags(skip_to_last=True, priority=1),
-            ((canvas_size_wh,), (canvas_size_wh,)),
+            ((canvas_size_wh, width_multiplier), (canvas_size_wh, width_multiplier)),
             None,
         )
 
@@ -579,3 +597,18 @@ class NonBlockingPairReader:
         self.left_file = None
         self.right_file = None
         self.reader.kill()
+
+    def get_metrics(self, left_idx: int, right_idx: int):
+        """
+        Args:
+            left_idx: left frame number
+            right_idx: right frame number
+
+        Returns: list of (metric label, (left score, right score))
+        """
+        if not self.metrics:
+            return []
+        labels, requested_metrics = zip(*self.metrics)
+        left_metrics = self.left_metrics.query(left_idx, requested_metrics)
+        right_metrics = self.right_metrics.query(right_idx, requested_metrics)
+        return list(zip(labels, zip(left_metrics, right_metrics)))

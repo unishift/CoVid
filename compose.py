@@ -1,13 +1,10 @@
-import numpy as np
-
+import os
 from typing import Tuple
+
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 Frame = np.ndarray
-
-
-def dummy_info(*args):
-    return "PSNR:24.07070707\nSSIM:228.14888"
 
 
 class FontConfig:
@@ -15,7 +12,9 @@ class FontConfig:
         self,
         canvas_size_wh: Tuple[int, int],
         sample_text: str,
-        font: str = "arial",
+        font: str = os.path.join(
+            os.path.dirname(__file__), "resources", "OpenSans-Regular"
+        ),
         location: Tuple[float, float] = (0.0, 1.0),
         color: Tuple[int, int, int] = (255, 255, 0),
         rel_max_size: Tuple[float, float] = (0.5, 0.75),
@@ -100,24 +99,39 @@ def compose_chess_pattern(
     """Perform composition using chess method
 
     Args:
-        left_frame
+        left_frame: top left tile
         right_frame
-        cell_size: Size of each cell relative to frame width/height
+        cell_size: Size of each cell relative to frame height
 
     Returns:
 
     """
-    _check_frame_pair_is_correct(left_frame, right_frame)
-    raise NotImplementedError("Implement compose_chess_pattern")
+    left_frame, right_frame = _check_frame_pair_is_correct(left_frame, right_frame)
+    h, w, _ = left_frame.shape
+    cell_width = int(h * cell_size)
+    unit = np.repeat(
+        np.repeat([[1, 0], [0, 1]], cell_width, axis=0), cell_width, axis=1
+    )
+    chess_pattern = np.tile(unit, (h // cell_width + 1, w // cell_width + 1))[
+        :h, :w, np.newaxis
+    ]
+    frame = np.where(chess_pattern, left_frame, right_frame)
+    return frame
 
 
 def compose_side_by_side(left_frame: Frame, right_frame: Frame):
     _check_frame_pair_is_correct(left_frame, right_frame)
-    return np.hstack(left_frame, right_frame)
+    return np.hstack((left_frame, right_frame))
 
 
 class Composer:
-    def __init__(self, compose_type: str, font_config: FontConfig, canvas_size_wh=None):
+    def __init__(
+        self,
+        compose_type: str,
+        font_config: FontConfig,
+        metrics: dict,
+        canvas_size_wh=None,
+    ):
         if compose_type == "split":
             self.compose_func = compose_vertical_split
         elif compose_type == "sbs":
@@ -126,15 +140,14 @@ class Composer:
             self.compose_func = compose_chess_pattern
         else:
             raise NotImplementedError("Unknown backend!")
-        self.info_provide_func = dummy_info
         self.font_config = font_config
         self.font = ImageFont.truetype(
             self.font_config.font + ".ttf", size=self.font_config.optimal_font_size
         )
         self.canvas_size_wh = canvas_size_wh
+        self.metrics = metrics
 
     def _compose_overlay_text(self, info_text, merged_frame: Image.Image):
-
         img = merged_frame
         img_draw = ImageDraw.Draw(img, mode="RGB")
         text_w, text_h = self.font.getsize_multiline(info_text)
@@ -162,6 +175,15 @@ class Composer:
         )
         return img
 
+    def format_text(self):
+        rows = []
+        for label, values in self.metrics:
+            left, right = values
+            left = "None" if left is None else f"{left:.03f}"
+            right = "None" if right is None else f"{right:.03f}"
+            rows.append(f"{label}: {left} vs. {right}")
+        return "\n".join(rows)
+
     def compose(
         self, left_frame: Frame, right_frame: Frame
     ) -> Tuple[Image.Image, float]:
@@ -183,6 +205,6 @@ class Composer:
         combined_frame = self.compose_func(left_frame, right_frame)
         combined_frame = Image.fromarray(combined_frame)
 
-        info_to_display = self.info_provide_func(left_frame, right_frame)
+        info_to_display = self.format_text()
         final_frame = self._compose_overlay_text(info_to_display, combined_frame)
         return final_frame, left_delta

@@ -8,6 +8,7 @@ from functools import partial
 from PIL import ImageTk
 
 import video_reader
+from metrics import VQMTMetrics
 
 gettext.install("covid", os.path.dirname(__file__))
 
@@ -52,10 +53,17 @@ class App(Application):
         self.last_canvas_size = (self.C.winfo_width(), self.C.winfo_height())
         self.reader = video_reader.NonBlockingPairReader("split")
         self.master.protocol("WM_DELETE_WINDOW", self.handle_close)
+        self.metrics = [
+            ("PSNR, Y", (tk.BooleanVar(), VQMTMetrics.PSNR_Y)),
+            ("SSIM, Y", (tk.BooleanVar(), VQMTMetrics.SSIM_Y)),
+            ("NIQE, Y", (tk.BooleanVar(), VQMTMetrics.NIQE_Y)),
+            ("VMAF v0.6.1, Y", (tk.BooleanVar(), VQMTMetrics.VMAF061_Y)),
+        ]
+
+        self.create_menu()
 
     def create_widgets(self):
         super().create_widgets()
-        self.create_menu()
 
         self.C = tk.Label(self)  # , background="gray75")
         self.C.grid(sticky="NEWS")
@@ -102,6 +110,7 @@ class App(Application):
 
         self.master.bind("<Configure>", self.handle_resize)
         self.master.bind("<space>", self.toggle_pause)
+        # todo bind forwarding
 
     def configure_widgets(self):
         super().configure_widgets()
@@ -340,6 +349,7 @@ class App(Application):
                 messagebox.showerror(type(e).__name__, str(e))
             self._on_select_canvas_update(self.reader.left_pos, self.reader.right_pos)
         self._update_canvas_image()
+        self.update_title()
 
     def select_right_video(self):
         fname = self._select_video_safe()
@@ -350,6 +360,7 @@ class App(Application):
                 messagebox.showerror(type(e).__name__, str(e))
             self._on_select_canvas_update(self.reader.right_pos, self.reader.left_pos)
         self._update_canvas_image()
+        self.update_title()
 
     def create_menu(self):
         menu_bar = tk.Menu(self)
@@ -366,22 +377,66 @@ class App(Application):
         menu_bar.add_cascade(label=_("File"), menu=file_menu)
 
         view_menu = tk.Menu(menu_bar, tearoff=0)
-        view_menu.add_radiobutton(label=_("Side-by-side"), command=None)
-        view_menu.add_radiobutton(label=_("Chess pattern"), command=None)
-        view_menu.add_radiobutton(label=_("Curtain"), command=None)
+        view_menu.add_radiobutton(
+            label=_("Side-by-side"), command=self.select_composer_type("sbs")
+        )
+        view_menu.add_radiobutton(
+            label=_("Chess pattern"), command=self.select_composer_type("chess")
+        )
+        view_menu.add_radiobutton(
+            label=_("Curtain"), command=self.select_composer_type("split")
+        )
         view_menu.invoke(0)
         menu_bar.add_cascade(label=_("View"), menu=view_menu)
 
         metrics_menu = tk.Menu(menu_bar, tearoff=0)
-        metrics_menu.add_checkbutton(label="PSNR", command=None)
-        metrics_menu.add_checkbutton(label="SSIM", command=None)
-        metrics_menu.add_checkbutton(label="NIQE", command=None)
+        for metric_label, (bool_var, query) in self.metrics:
+            metrics_menu.add_checkbutton(
+                label=metric_label,
+                onvalue=1,
+                offvalue=0,
+                variable=bool_var,
+                command=self.update_metrics,
+            )
         menu_bar.add_cascade(label=_("Metrics"), menu=metrics_menu)
+
+    def select_composer_type(self, composer_type: str):
+        def wrapper():
+            self.reader.composer_type = composer_type
+            self.reader.last_input["read_frame"] = None  # drop cache
+            self._update_canvas_image()
+
+        return wrapper
+
+    def update_title(self):
+        left_file = self.reader.left_file
+        right_file = self.reader.right_file
+        if left_file:
+            left_file = os.path.basename(left_file)
+        if right_file:
+            right_file = os.path.basename(right_file)
+        self.master.title(f"{left_file} vs {right_file} | CoVid")
+
+    def update_metrics(self):
+        self.reader.metrics = [
+            (label, query) for label, (v, query) in self.metrics if v.get()
+        ]
+        self.reader.last_input["read_frame"] = None  # drop cache
+        self._update_canvas_image()
 
 
 def main():
-    app = App(title="<None> and <None> | CoVid")  # TODO update title
+    app = App(title="<None> and <None> | CoVid")
     app.master.geometry("600x400")
+
+    app.reader.create_left_reader(
+        os.path.join(os.path.dirname(__file__), "samples", "foreman_crf30_short.mp4")
+    )
+    app.reader.create_right_reader(
+        os.path.join(os.path.dirname(__file__), "samples", "foreman_crf40_short.mp4")
+    )
+    app.update_title()
+
     app.mainloop()
 
 
