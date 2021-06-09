@@ -430,10 +430,14 @@ def main():
     app.master.geometry("600x400")
 
     # app.reader.create_left_reader(
-    #     os.path.join(os.path.dirname(__file__), "..", "samples", "foreman_crf30_short.mp4")
+    #     os.path.join(
+    #         os.path.dirname(__file__), "..", "samples", "foreman_crf30_short.mp4"
+    #     )
     # )
     # app.reader.create_right_reader(
-    #     os.path.join(os.path.dirname(__file__), "..", "samples", "foreman_crf40_short.mp4")
+    #     os.path.join(
+    #         os.path.dirname(__file__), "..", "samples", "foreman_crf40_short.mp4"
+    #     )
     # )
     app.update_title()
 
