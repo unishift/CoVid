@@ -373,7 +373,7 @@ class App(Application):
         file_menu.add_command(label=_("Save as GIF..."), command=None)
         file_menu.add_command(label=_("Save as video..."), command=None)
         file_menu.add_separator()
-        file_menu.add_command(label=_("Exit"), command=self.quit)
+        file_menu.add_command(label=_("Exit"), command=self.handle_close)
         menu_bar.add_cascade(label=_("File"), menu=file_menu)
 
         view_menu = tk.Menu(menu_bar, tearoff=0)
