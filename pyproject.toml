@@ -1,0 +1,3 @@
+[build-system]
+requires = ["doit", "build", "babel", "setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
