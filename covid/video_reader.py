@@ -204,10 +204,17 @@ class ProcessWrapper:
                     break
 
     def start(self):
+
+        try:
+            from pytest_cov.embed import cleanup_on_sigterm
+        except ImportError:
+            pass
+        else:
+            cleanup_on_sigterm()
         self.process.start()
 
     def end(self):
-        self.process.kill()
+        self.process.terminate()
         self.in_queue.close()
         self.out_queue.close()
 
@@ -400,6 +407,13 @@ class NonBlockingPairReader:
             target=spawn_pairs_reader, args=(None, None, self.in_queue, self.out_queue)
         )
         self.metrics = []
+
+        try:
+            from pytest_cov.embed import cleanup_on_sigterm
+        except ImportError:
+            pass
+        else:
+            cleanup_on_sigterm()
         self.reader.start()
 
     def create_left_reader(self, new_file: Union[str, pathlib.Path]):
@@ -596,7 +610,14 @@ class NonBlockingPairReader:
     def close(self):
         self.left_file = None
         self.right_file = None
-        self.reader.kill()
+        self.reader.terminate()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.reader.terminate()
+        return False
 
     def get_metrics(self, left_idx: int, right_idx: int):
         """
