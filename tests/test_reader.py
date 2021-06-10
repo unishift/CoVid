@@ -1,5 +1,3 @@
-import os
-
 import PIL
 import numpy as np
 
@@ -39,7 +37,7 @@ def test_threaded():
         print(frame, delta)
         assert isinstance(frame, PIL.Image.Image)
         frame = np.array(frame)
-        assert (frame[:, int(frame.shape[1] * 0.8):, :]).max() < 0.01
+        assert (frame[:, int(frame.shape[1] * 0.8) :, :]).max() < 0.01
 
         main_thread.composer_type = "chess"
         main_thread.create_right_reader("samples/foreman_crf40_short.mp4")
@@ -51,15 +49,14 @@ def test_threaded():
         frame, delta = main_thread.get_next_frame(False, (800, 800))
         assert isinstance(frame, PIL.Image.Image)
         frame = np.array(frame)
-        assert (frame[:, int(frame.shape[1] * 0.8):, :]).max() > 0.01
+        assert (frame[:, int(frame.shape[1] * 0.8) :, :]).max() > 0.01
 
-        main_thread.metrics = [
-            ("PSNR, Y", VQMTMetrics.PSNR_Y)
-        ]
+        main_thread.metrics = [("PSNR, Y", VQMTMetrics.PSNR_Y)]
         metrics = main_thread.get_metrics(0, 0)[0][1]
         assert 13 < metrics[0] < metrics[1] < 14
         assert main_thread.has_no_tasks()
-    #main_thread.close()
+    # main_thread.close()
+
 
 if __name__ == "__main__":
     test_threaded()
