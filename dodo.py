@@ -54,14 +54,14 @@ def task_copyresources():
 
 def task_app():
     """Run application."""
-    return dict(actions=["python -m covid"], task_dep=["mo", "copyresources"])
+    return dict(actions=["python3 -m covid"], task_dep=["mo", "copyresources"])
 
 
 def task_sdist():
     """Create source distribution."""
-    return dict(actions=["python -m build -s"], task_dep=["gitclean"])
+    return dict(actions=["python3 -m build -s"], task_dep=["gitclean"])
 
 
 def task_wheel():
     """Create binary wheel distribution."""
-    return dict(actions=["python -m build -w"], task_dep=["mo", "copyresources"])
+    return dict(actions=["python3 -m build -w"], task_dep=["mo", "copyresources"])
