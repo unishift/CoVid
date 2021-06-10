@@ -1,4 +1,4 @@
-name: Lint
+name: Test
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - master
 
 jobs:
-  lint:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -17,6 +17,8 @@ jobs:
       
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install python3-tk libffms2-4
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install pytest pytest-cov
