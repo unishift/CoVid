@@ -12,9 +12,7 @@ class FontConfig:
         self,
         canvas_size_wh: Tuple[int, int],
         sample_text: str,
-        font: str = os.path.join(
-            os.path.dirname(__file__), "resources", "OpenSans-Regular"
-        ),
+        font: str = os.path.join(os.path.dirname(__file__), "OpenSans-Regular"),
         location: Tuple[float, float] = (0.0, 1.0),
         color: Tuple[int, int, int] = (255, 255, 0),
         rel_max_size: Tuple[float, float] = (0.5, 0.75),

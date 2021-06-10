@@ -8,8 +8,8 @@ import pathlib
 
 from PIL import Image
 
-import compose
-from metrics import VQMTMetrics
+from . import compose
+from .metrics import VQMTMetrics
 
 from typing import Union, NamedTuple, Tuple, Callable
 

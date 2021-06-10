@@ -1,18 +1,22 @@
 API Reference
 ===================
 
-main
-----
-.. automodule:: main
+covid
+-----
+.. automodule:: covid.covid
     :members:
 
 compose
 -------
-.. automodule:: compose
+.. automodule:: covid.compose
     :members:
 
 video_reader
 ------------
-.. automodule:: video_reader
+.. automodule:: covid.video_reader
     :members:
 
+metrics
+-------
+.. automodule:: covid.metrics
+    :members:

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2021-05-03 11:28+0800\n"
+"POT-Creation-Date: 2021-06-09 21:43+0300\n"
 "PO-Revision-Date: 2021-05-03 11:29+0800\n"
 "Last-Translator: Egor Sklyarov <egor.sklyarov.ru@gmail.com>\n"
 "Language: ru\n"
@@ -19,47 +19,47 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.9.1\n"
 
-#: main.py:75
+#: covid/covid.py:370
 msgid "Open left"
 msgstr "Открыть слева"
 
-#: main.py:76
+#: covid/covid.py:371
 msgid "Open right"
 msgstr "Открыть справа"
 
-#: main.py:78
+#: covid/covid.py:373
 msgid "Save as GIF..."
 msgstr "Сохранить как GIF..."
 
-#: main.py:79
+#: covid/covid.py:374
 msgid "Save as video..."
 msgstr "Сохранить как видео..."
 
-#: main.py:81
+#: covid/covid.py:376
 msgid "Exit"
 msgstr "Выйти"
 
-#: main.py:82
+#: covid/covid.py:377
 msgid "File"
 msgstr "Файл"
 
-#: main.py:85
+#: covid/covid.py:381
 msgid "Side-by-side"
 msgstr "Рядом"
 
-#: main.py:86
+#: covid/covid.py:384
 msgid "Chess pattern"
 msgstr "Шахматная доска"
 
-#: main.py:87
+#: covid/covid.py:387
 msgid "Curtain"
 msgstr "Разделитель"
 
-#: main.py:89
+#: covid/covid.py:390
 msgid "View"
 msgstr "Вид"
 
-#: main.py:95
+#: covid/covid.py:401
 msgid "Metrics"
 msgstr "Метрики"
 
